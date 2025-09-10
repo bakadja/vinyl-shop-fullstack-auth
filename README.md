@@ -118,16 +118,18 @@ GET  /api/auth/me         # Get current user profile
 
 ```http
 GET /api/products         # Get all products
-GET /api/products/:id     # Get specific product
+GET /api/products/genres  # Get all available genres
+GET /api/products?genre=indie    # Get products filtered by genre
 ```
 
 ### Cart Endpoints
 
 ```http
-GET    /api/cart          # Get user's cart
-POST   /api/cart/items    # Add item to cart
-PUT    /api/cart/items/:id # Update cart item
-DELETE /api/cart/items/:id # Remove item from cart
+GET    /api/cart               # Get all cart items for user
+POST   /api/cart/add          # Add a newly purchased item
+DELETE /api/cart/all          # Delete all user's cart items
+DELETE /api/cart/:itemId       # Delete a specific item
+GET    /api/cart/cart-count   # Get the number of items a user has in their cart
 ```
 
 ## 📁 Project Structure
