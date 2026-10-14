@@ -136,3 +136,8 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Environment configuration (only placeholders may be committed)
+.env
+.env.*
+!.env.example
