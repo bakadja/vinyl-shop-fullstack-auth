@@ -1,7 +1,10 @@
 export function addBtnListeners() {
   document.querySelectorAll('.add-btn').forEach(button => {
     button.addEventListener('click', async (event) => {
-      const albumId = event.currentTarget.dataset.id
+      const button = event.currentTarget
+      if (button.disabled) return
+      button.disabled = true
+      const albumId = button.dataset.id
 
       try {
         const res = await fetch('/api/cart/add', {
@@ -11,13 +14,19 @@ export function addBtnListeners() {
           body: JSON.stringify({ productId: albumId })
         })
 
-        if (!res.ok) {
-          return window.location.href = '/login.html'
+        if (res.status === 401) {
+          window.location.href = '/login.html'
+          return
         }
+        if (!res.ok) throw new Error('Add failed')
 
+        const message = document.getElementById('catalog-message')
+        if (message.textContent === 'Unable to add to cart. Please try again.') message.textContent = ''
         await updateCartIcon()
       } catch (err) {
-        console.error('Error adding to cart:', err)
+        document.getElementById('catalog-message').textContent = 'Unable to add to cart. Please try again.'
+      } finally {
+        button.disabled = false
       }
     })
   })
@@ -26,6 +35,7 @@ export function addBtnListeners() {
 export async function updateCartIcon() {
   try {
     const res = await fetch('/api/cart/cart-count')
+    if (!res.ok) throw new Error('Cart count failed')
     const obj = await res.json()
     const totalItems = obj.totalItems
 
@@ -50,20 +60,24 @@ export async function loadCart(dom) {
 
   try {
     const items = await fetchCartItems(dom)
+    if (items === null) return false
     renderCartItems(items, cartList)
     updateCartTotal(items, cartTotal, checkoutBtn)
+    return true
   } catch (err) {
     console.error('Error loading cart:', err)
     const message = document.createElement('li')
     message.textContent = 'Error loading cart data.'
     cartList.replaceChildren(message)
+    checkoutBtn.disabled = true
+    return false
   }
 }
 
 async function fetchCartItems({ userMessage, checkoutBtn }) {
   const res = await fetch('/api/cart/', { credentials: 'include' })
 
-  if (!res.ok) {
+  if (res.status === 401) {
     window.location.href = '/'
     checkoutBtn.disabled = true
     checkoutBtn.classList.add('disabled')
@@ -71,10 +85,12 @@ async function fetchCartItems({ userMessage, checkoutBtn }) {
     loginLink.href = 'login.html'
     loginLink.textContent = 'log in'
     userMessage.replaceChildren('Please ', loginLink, '.')
-    return []
+    return null
   }
+  if (!res.ok) throw new Error('Cart load failed')
 
   const { items } = await res.json()
+  if (!Array.isArray(items)) throw new Error('Invalid cart response')
   return items
 }
 
@@ -108,42 +124,57 @@ function updateCartTotal(items, cartTotal, checkoutBtn) {
   const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
   cartTotal.textContent = `Total: $${total.toFixed(2)}`
 
-  if (total <= 0) {
-    checkoutBtn.disabled = true
-    checkoutBtn.classList.add('disabled')
-  }
+  checkoutBtn.disabled = items.length === 0
+  if (checkoutBtn.disabled) checkoutBtn.classList.add('disabled')
+  else checkoutBtn.classList.remove('disabled')
 }
 
-export async function removeItem(itemId, dom) {
-  try {
-    const res = await fetch(`/api/cart/${itemId}`, {
-      method: 'DELETE',
-      credentials: 'include',
-    })
+const pendingChanges = new WeakSet()
 
-    if (res.status === 204) {
-      await loadCart(dom)
-    } else {
-      console.error('Error removing item:', await res.text())
-    }
-  } catch (err) {
-    console.error('Error removing item:', err)
+
+export async function removeItem(itemId, dom) {
+  if (pendingChanges.has(dom)) return false
+  pendingChanges.add(dom)
+  dom.checkoutBtn.disabled = true
+  try {
+    const res = await fetch(`/api/cart/${encodeURIComponent(itemId)}`, {
+      method: 'DELETE', credentials: 'include'
+    })
+    if (res.status !== 204) throw new Error('Remove failed')
+    await loadCart(dom)
+    return true
+  } catch {
+    dom.userMessage.textContent = 'Unable to remove item. Please try again.'
+    dom.checkoutBtn.disabled = dom.cartList.children.length === 0
+    return false
+  } finally {
+    pendingChanges.delete(dom)
   }
 }
 
 export async function removeAll(dom) {
+  if (pendingChanges.has(dom)) return false
+  pendingChanges.add(dom)
+  dom.checkoutBtn.disabled = true
+  dom.userMessage.textContent = 'Clearing cart…'
   try {
-    const res = await fetch(`/api/cart/all`, {
-      method: 'DELETE',
-      credentials: 'include',
+    const res = await fetch('/api/cart/all', {
+      method: 'DELETE', credentials: 'include'
     })
-
-    if (res.status === 204) {
-      await loadCart(dom)
-    } else {
-      console.error('Error clearing cart:', await res.text())
+    if (res.status !== 204) throw new Error('Clear failed')
+    // DELETE is authoritative even if refreshing the cart subsequently fails.
+    const loaded = await loadCart(dom)
+    if (!loaded) {
+      renderCartItems([], dom.cartList)
+      updateCartTotal([], dom.cartTotal, dom.checkoutBtn)
     }
-  } catch (err) {
-    console.error('Error clearing cart:', err)
+    dom.userMessage.textContent = 'Cart cleared. No order has been placed.'
+    return true
+  } catch {
+    dom.userMessage.textContent = 'Unable to clear cart. Please try again.'
+    dom.checkoutBtn.disabled = dom.cartList.children.length === 0
+    return false
+  } finally {
+    pendingChanges.delete(dom)
   }
 }

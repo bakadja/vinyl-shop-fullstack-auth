@@ -4,9 +4,9 @@ import bcrypt from 'bcryptjs'
 
 export async function registerUser(req, res) {
 
-  let { name, email, username, password } = req.body
+  let { name, email, username, password } = req.body ?? {}
 
-  if (!name || !email || !username || !password) {
+  if (![name, email, username, password].every(value => typeof value === 'string' && value.trim())) {
 
     return res.status(400).json({ error: 'All fields are required.' })
 
@@ -57,9 +57,9 @@ export async function registerUser(req, res) {
 
 export async function loginUser(req, res) {
 
-  let { username, password } = req.body
+  let { username, password } = req.body ?? {}
 
-  if (!username || !password) {
+  if (![username, password].every(value => typeof value === 'string' && value.trim())) {
     return res.status(400).json({ error: 'All fields are required' } )
   }
 
@@ -94,7 +94,8 @@ export async function loginUser(req, res) {
 
 export async function logoutUser(req, res) {
 
-  req.session.destroy( () => {
+  req.session.destroy( (err) => {
+    if (err) return res.status(500).json({ error: 'Logout failed. Please try again.' })
 
     res.json({ message: 'Logged out' })
 
