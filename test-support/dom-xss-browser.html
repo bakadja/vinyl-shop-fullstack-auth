@@ -8,8 +8,8 @@
 <div id="cart-banner"></div>
 <ul id="cart-list"></ul><p id="cart-total"></p><p id="user-message"></p><button id="checkout-btn">Checkout</button>
 <script type="module">
-import { renderProducts } from '/js/productUI.js'
-import { loadCart, updateCartIcon } from '/js/cartService.js'
+import { renderProducts } from './js/productUI.js'
+import { loadCart, updateCartIcon } from './js/cartService.js'
 const checks = []
 function check(condition, name) {
   if (!condition) throw new Error(name)
@@ -17,7 +17,7 @@ function check(condition, name) {
 }
 try {
   globalThis.xss = 0
-  const html = '<img src=x onerror="globalThis.xss=1"><svg onload="globalThis.xss=1"></svg><script>globalThis.xss=1<\/script>&'
+  const html = '<img src=x onerror="globalThis.xss=1"><svg onload="globalThis.xss=1"></svg><script>globalThis.xss=1<' + '/script>&'
   const attribute = '1" onclick="globalThis.xss=1'
   renderProducts([{ title: html, artist: html, price: html, genre: html, id: attribute, image: 'missing.png" onerror="globalThis.xss=1' }])
   const card = document.querySelector('.product-card')

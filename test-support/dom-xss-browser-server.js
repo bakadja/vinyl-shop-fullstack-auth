@@ -5,8 +5,9 @@ import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 const server = http.createServer(async (req, res) => {
   const path = new URL(req.url, 'http://localhost').pathname
-  const file = path === '/' ? new URL('./dom-xss-browser.html', import.meta.url)
-    : /^\/js\/[a-zA-Z]+\.js$/.test(path) ? new URL(`../public${path}`, import.meta.url) : null
+  let file = null
+  if (path === '/') file = new URL('./dom-xss-browser.html', import.meta.url)
+  else if (/^\/js\/[a-zA-Z]+\.js$/.test(path)) file = new URL(`../public${path}`, import.meta.url)
   if (!file) { res.writeHead(404).end(); return }
   try {
     const body = await readFile(fileURLToPath(file))
