@@ -15,6 +15,7 @@ A full-stack web application for a vintage vinyl record store with user authenti
 - [Demo](#demo)
 - [Installation](#installation)
 - [Usage](#usage)
+- [Tests](#tests)
 - [API Documentation](#api-documentation)
 - [Project Structure](#project-structure)
 - [Configuration](#configuration)
@@ -117,14 +118,66 @@ The application provides RESTful API endpoints for:
 - **Cart Management**: `/api/cart/*`
 - **User Profile**: `/api/auth/me`
 
+## Tests
+
+```bash
+npm ci
+npm test                         # All 19 tests: 5 database + 14 HTTP scenarios
+node --test test/database.test.js # Original database tests only
+node --test test/api.test.js      # HTTP integration tests only
+```
+
+No `npm run db:init`, running development server, `.env`, or external service is
+required for tests. The suite uses the built-in Node.js test runner and native
+`fetch`; no additional dependencies are installed. CI uses Node.js 24 on Ubuntu.
+
+Each HTTP scenario initializes a fictional catalogue in a new OS temporary
+directory and starts the real `server.js` in a separate process with that directory
+as its working directory. Because SQLite resolves `database.db` relative to the
+working directory, these requests never open the development database. `PORT=0`
+assigns a free port; each server gets a randomly generated, disposable session
+secret. Independent HTTP clients retain separate session cookies. Servers are
+stopped before their temporary databases are removed, including on test failure.
+
+The HTTP scenarios cover registration, input validation, duplicate accounts,
+hashed password storage, login and invalid credentials, session inspection,
+logout with reuse of the old cookie, anonymous access to all five cart endpoints,
+public catalogue/genres/filtering/search, cart quantities/counts/removal/clearing,
+cart persistence across login, and isolation between two users. Isolation checks
+include the same product in both carts, attempts to delete the other user's item,
+and clearing one cart without changing the other. The five original database
+tests remain unchanged.
+
+`.github/workflows/api-tests.yml` runs `npm ci` and `npm test` on every pull request
+targeting `main`, including drafts. It uses read-only repository permissions and
+does not require secrets or deploy the application.
+
+### Known issues and limits
+
+- A temporary-database HTTP probe found that adding nonexistent `productId: 9999`
+  returns 200 and increases the cart count to 1, while listing the cart returns
+  no items. The add route does not check product existence, and runtime SQLite
+  connections do not enable foreign-key enforcement. This business behavior is
+  left unchanged; the passing suite does not assert that nonexistent products are
+  rejected. Nonnumeric product IDs and missing cart-item deletion are covered.
+- The README previously listed `/signup` and `POST /logout`; it now documents
+  the actual routes, `/register` and `GET /logout`.
+- `npm ci` reported 20 existing dependency vulnerabilities locally (2 low,
+  4 moderate, 12 high, 2 critical). Dependencies and the lockfile are unchanged;
+  vulnerability remediation is outside this PR.
+- These are API integration tests, not browser/UI, load, or a complete security
+  audit. Static assets are not served from the repository in the temporary working
+  directory. Production session storage, CSRF protection, malformed input types,
+  concurrent requests, and stock enforcement are outside the covered scenarios.
+
 ## 📚 API Documentation
 
 ### Authentication Endpoints
 
 ```http
-POST /api/auth/signup     # Register new user
+POST /api/auth/register     # Register new user
 POST /api/auth/login      # User login
-POST /api/auth/logout     # User logout
+GET  /api/auth/logout     # User logout
 GET  /api/auth/me         # Get current user profile
 ```
 

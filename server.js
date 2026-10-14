@@ -6,7 +6,7 @@ import { cartRouter } from './routes/cart.js'
 import session from 'express-session'
 
 const app = express() 
-const PORT = 8000
+const PORT = Number(process.env.PORT ?? 8000)
 const secret = process.env.SPIRAL_SESSION_SECRET || 'jellyfish-baskingshark'
 
 app.use(express.json()) 
@@ -32,8 +32,8 @@ app.use('/api/auth', authRouter)
 
 app.use('/api/cart', cartRouter)
  
-app.listen(PORT, () => { 
-  console.log(`Server running at http://localhost:${PORT}`)
+const server = app.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${server.address().port}`)
 }).on('error', (err) => {
   console.error('Failed to start server:', err)
-}) 
+})
