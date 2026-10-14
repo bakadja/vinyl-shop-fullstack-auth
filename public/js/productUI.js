@@ -4,20 +4,32 @@ import { addBtnListeners } from './cartService.js'
 
 export function renderProducts(products) {
   const albumsContainer = document.getElementById('products-container')
-  const cards = products.map((album) => {
-    return `
-      <div class="product-card">
-        <img src="./images/${album.image}" alt="${album.title}">
-        <h2>${album.title}</h2>
-        <h3>${album.artist}</h3>
-        <p>$${album.price}</p>
-        <button class="main-btn add-btn" data-id="${album.id}">Add to Cart</button>
-        <p class="genre-label">${album.genre}</p>
-      </div>
-    `
-  }).join('')
+  albumsContainer.replaceChildren()
+  products.forEach(album => {
+    const card = document.createElement('div')
+    card.className = 'product-card'
 
-  albumsContainer.innerHTML = cards
+    const image = document.createElement('img')
+    image.src = `./images/${album.image}`
+    image.alt = album.title
+    const title = document.createElement('h2')
+    title.textContent = album.title
+    const artist = document.createElement('h3')
+    artist.textContent = album.artist
+    const price = document.createElement('p')
+    price.textContent = `$${album.price}`
+    const button = document.createElement('button')
+    button.className = 'main-btn add-btn'
+    button.dataset.id = album.id
+    button.textContent = 'Add to Cart'
+    const genre = document.createElement('p')
+    genre.className = 'genre-label'
+    genre.textContent = album.genre
+
+    card.append(image, title, artist, price, button, genre)
+    albumsContainer.appendChild(card)
+  })
+
   addBtnListeners()
 }
 
