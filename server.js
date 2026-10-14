@@ -35,8 +35,15 @@ app.use('/api/cart', cartRouter)
 // Keep API failures JSON and never return stack traces or database messages.
 app.use((err, req, res, next) => {
   if (res.headersSent) return next(err)
-  const status = err.status === 400 ? 400 : err.status === 413 ? 413 : 500
-  const error = status === 400 ? 'Invalid request body' : status === 413 ? 'Request body too large' : 'Internal server error'
+  let status = 500
+  let error = 'Internal server error'
+  if (err.status === 400) {
+    status = 400
+    error = 'Invalid request body'
+  } else if (err.status === 413) {
+    status = 413
+    error = 'Request body too large'
+  }
   res.status(status).json({ error })
 })
 

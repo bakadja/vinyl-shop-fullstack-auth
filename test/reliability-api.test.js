@@ -81,9 +81,23 @@ apiTest('database rejections yield sanitized JSON errors and the server stays al
   for (const [path, method, body] of [['/api/cart','GET'], ['/api/cart/cart-count','GET'], ['/api/cart/add','POST',{ productId: 1 }], ['/api/cart/1','DELETE'], ['/api/cart/all','DELETE'], ['/api/products','GET'], ['/api/products/genres','GET']]) {
     const result = await request(path, { method, body })
     assert.equal(result.status, 500)
-    assert.equal(typeof result.body.error, 'string')
+    assert.deepEqual(result.body, { error: 'Internal server error' })
     assert.equal(Object.hasOwn(result.body, 'details'), false)
     assert.doesNotMatch(JSON.stringify(result.body), /SQLITE|no such table|stack|SELECT|DELETE/i)
   }
   assert.equal((await request('/api/auth/me')).status, 200)
+})
+
+apiTest('malformed JSON body shape keeps the sanitized 400 response', async ({ client }) => {
+  const request = client()
+  const result = await request('/api/auth/login', { method: 'POST', body: null })
+  assert.equal(result.status, 400)
+  assert.deepEqual(result.body, { error: 'Invalid request body' })
+})
+
+apiTest('oversized JSON keeps the sanitized 413 response', async ({ client }) => {
+  const request = client()
+  const result = await request('/api/auth/login', { method: 'POST', body: { password: 'x'.repeat(110000) } })
+  assert.equal(result.status, 413)
+  assert.deepEqual(result.body, { error: 'Request body too large' })
 })

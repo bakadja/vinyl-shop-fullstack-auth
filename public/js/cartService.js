@@ -24,6 +24,7 @@ export function addBtnListeners() {
         if (message.textContent === 'Unable to add to cart. Please try again.') message.textContent = ''
         await updateCartIcon()
       } catch (err) {
+        console.error('Error adding to cart:', err)
         document.getElementById('catalog-message').textContent = 'Unable to add to cart. Please try again.'
       } finally {
         button.disabled = false
