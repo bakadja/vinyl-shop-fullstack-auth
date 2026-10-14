@@ -11,43 +11,59 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
+
       - name: Install locked dependencies
         run: npm ci --ignore-scripts
-      # Only sqlite3 needs a native installation script; do not run every dependency hook.
+
+      # Security: fail CI on high or critical vulnerabilities
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      # Only sqlite3 needs a native installation script.
       - name: Build reviewed SQLite native binding
         run: npm rebuild sqlite3 --ignore-scripts=false
+
       - name: Verify native SQLite runtime
         run: |
           node --input-type=module -e "import sqlite3 from 'sqlite3'; import { open } from 'sqlite'; const db = await open({ filename: ':memory:', driver: sqlite3.Database }); console.log(process.platform, process.arch, process.version, await db.get('SELECT sqlite_version() AS sqlite_version')); await db.close();"
+
       - name: Run database and HTTP integration tests
         run: npm test
 
   test-macos:
     runs-on: macos-latest
     timeout-minutes: 10
+
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
+
       - name: Install locked dependencies
         run: npm ci --ignore-scripts
-      # Only sqlite3 needs a native installation script; do not run every dependency hook.
+
+      # Only sqlite3 needs a native installation script.
       - name: Build reviewed SQLite native binding
         run: npm rebuild sqlite3 --ignore-scripts=false
+
       - name: Verify native SQLite runtime
         run: |
           node --input-type=module -e "import sqlite3 from 'sqlite3'; import { open } from 'sqlite'; const db = await open({ filename: ':memory:', driver: sqlite3.Database }); console.log(process.platform, process.arch, process.version, await db.get('SELECT sqlite_version() AS sqlite_version')); await db.close();"
+
       - name: Run database and HTTP integration tests
         run: npm test
