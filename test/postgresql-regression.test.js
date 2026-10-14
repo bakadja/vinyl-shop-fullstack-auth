@@ -67,3 +67,45 @@ test('racing duplicate registrations preserve 400 response and unauthenticated l
   assert.deepEqual((await loser('/api/auth/me')).body, { isLoggedIn: false })
   assert.equal((await database.query('SELECT COUNT(*) AS n FROM users')).rows[0].n, '1')
 })
+
+test('larger concurrent cart additions stay atomic and isolated for each user', async t => {
+  const { client, database } = await fixture(t)
+  const alice = client()
+  const bob = client()
+  await register(alice, account('parallel-alice'))
+  await register(bob, account('parallel-bob'))
+  const responses = await Promise.all(Array.from({ length: 40 }, (_, index) => (index % 2 ? alice : bob)('/api/cart/add', { method: 'POST', body: { productId: index % 3 ? '1' : 1 } })))
+  assert.ok(responses.every(response => response.status === 200))
+  for (const request of [alice, bob]) {
+    const items = (await request('/api/cart')).body.items
+    assert.equal(items.length, 1)
+    assert.equal(items[0].quantity, 20)
+    assert.equal(typeof items[0].cartItemId, 'number')
+    assert.equal(typeof items[0].price, 'number')
+    assert.deepEqual((await request('/api/cart/cart-count')).body, { totalItems: 20 })
+  }
+  assert.equal((await database.query('SELECT COUNT(*) AS n FROM cart_items')).rows[0].n, '2')
+})
+
+test('valid safe IDs above PostgreSQL integer range preserve missing-item responses', async t => {
+  const { client } = await fixture(t)
+  const request = client()
+  await register(request)
+  for (const id of [2147483648, Number.MAX_SAFE_INTEGER]) {
+    assert.equal((await request('/api/cart/add', { method: 'POST', body: { productId: id } })).status, 404)
+    assert.equal((await request(`/api/cart/${id}`, { method: 'DELETE' })).status, 400)
+  }
+})
+
+test('unsafe aggregate values fail with sanitized JSON instead of rounded counts', async t => {
+  const { client, database } = await fixture(t)
+  const request = client()
+  await register(request)
+  // Simulate an incompatible externally modified column only inside this disposable schema.
+  await database.query('ALTER TABLE cart_items ALTER COLUMN quantity TYPE bigint')
+  await database.query('INSERT INTO cart_items(user_id, product_id, quantity) SELECT id, 1, 9007199254740991 FROM users')
+  await database.query('INSERT INTO cart_items(user_id, product_id, quantity) SELECT id, 2, 1 FROM users')
+  const response = await request('/api/cart/cart-count')
+  assert.equal(response.status, 500)
+  assert.deepEqual(response.body, { error: 'Internal server error' })
+})
