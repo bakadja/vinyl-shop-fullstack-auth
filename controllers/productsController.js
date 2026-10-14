@@ -1,11 +1,9 @@
-import { getDBConnection } from '../db/db.js'
+import { getDatabase } from '../db/db.js'
+import { priceNumber } from '../db/values.js'
 
 export async function getGenres(req, res) {
-  const db = await getDBConnection()
-  try {
-    const rows = await db.all('SELECT DISTINCT genre FROM products')
-    res.json(rows.map(row => row.genre))
-  } finally { await db.close() }
+  const { rows } = await getDatabase().query('SELECT DISTINCT genre FROM products')
+  res.json(rows.map(row => row.genre))
 }
 
 export async function getProducts(req, res) {
@@ -16,15 +14,15 @@ export async function getProducts(req, res) {
   const conditions = []
   const params = []
   if (genre) {
-    conditions.push('genre = ?')
     params.push(genre)
+    conditions.push(`genre = $${params.length}`)
   }
   if (search) {
-    conditions.push('(title LIKE ? OR artist LIKE ? OR genre LIKE ?)')
-    const pattern = `%${search}%`
-    params.push(pattern, pattern, pattern)
+    params.push(`%${search}%`)
+    const placeholder = `$${params.length}`
+    conditions.push(`(title ILIKE ${placeholder} OR artist ILIKE ${placeholder} OR genre ILIKE ${placeholder})`)
   }
   const query = 'SELECT * FROM products' + (conditions.length ? ` WHERE ${conditions.join(' AND ')}` : '')
-  const db = await getDBConnection()
-  try { res.json(await db.all(query, params)) } finally { await db.close() }
+  const { rows } = await getDatabase().query(query, params)
+  res.json(rows.map(row => ({ ...row, price: priceNumber(row.price) })))
 }

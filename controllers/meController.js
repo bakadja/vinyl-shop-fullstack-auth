@@ -1,8 +1,8 @@
-import { getDBConnection } from '../db/db.js'
+import { getDatabase } from '../db/db.js'
 
 export async function getCurrentUser(req, res) {
   try {
-    const db = await getDBConnection()
+    const db = getDatabase()
 
     if (!req.session.userId) {
 
@@ -10,12 +10,12 @@ export async function getCurrentUser(req, res) {
       
     }
 
-    const user = await db.get('SELECT name FROM users WHERE id = ?', [req.session.userId])
+    const user = (await db.query('SELECT name FROM users WHERE id = $1', [req.session.userId])).rows[0]
 
     res.json({ isLoggedIn: true, name: user.name})
 
   } catch (err) {
-    console.error('getCurrentUser error:', err)
+    console.error('Current user database operation failed')
     res.status(500).json({ error: 'Internal server error' })
   }
 } 

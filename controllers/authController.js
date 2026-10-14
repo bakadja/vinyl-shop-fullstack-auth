@@ -1,5 +1,5 @@
 import validator from 'validator'
-import { getDBConnection } from '../db/db.js'
+import { getDatabase } from '../db/db.js'
 import bcrypt from 'bcryptjs'
 
 export async function registerUser(req, res) {
@@ -31,9 +31,9 @@ export async function registerUser(req, res) {
 
   try {
 
-    const db = await getDBConnection()
+    const db = getDatabase()
 
-    const existing = await db.get('SELECT id FROM users WHERE email = ? OR username = ?', [email, username])
+    const existing = (await db.query('SELECT id FROM users WHERE email = $1 OR username = $2', [email, username])).rows[0]
 
     if (existing) {
       return res.status(400).json({ error: 'Email or username already in use.' })
@@ -41,14 +41,15 @@ export async function registerUser(req, res) {
 
     const hashed = await bcrypt.hash(password, 10)
 
-    const result = await db.run('INSERT INTO users (name, email, username, password) VALUES (?, ?, ?, ?)', [name, email, username, hashed])
+    const result = await db.query('INSERT INTO users (name, email, username, password) VALUES ($1, $2, $3, $4) RETURNING id', [name, email, username, hashed])
 
-    req.session.userId = result.lastID
+    req.session.userId = result.rows[0].id
 
     res.status(201).json({ message: 'User registered' })
   } catch (err) {
  
-    console.error('Registration error:', err.message);
+    if (err.code === '23505') return res.status(400).json({ error: 'Email or username already in use.' })
+    console.error('Registration database operation failed')
     res.status(500).json({ error: 'Registration failed. Please try again.' })
 
   }
@@ -66,9 +67,9 @@ export async function loginUser(req, res) {
   username = username.trim()
 
   try {
-    const db = await getDBConnection()
+    const db = getDatabase()
 
-    const user = await db.get('SELECT * FROM users WHERE username = ?', [username])
+    const user = (await db.query('SELECT * FROM users WHERE username = $1', [username])).rows[0]
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials'})
@@ -86,7 +87,7 @@ export async function loginUser(req, res) {
     res.json({ message: 'Logged in' })
 
   } catch (err) {
-    console.error('Login error:', err.message)
+    console.error('Login database operation failed')
     res.status(500).json({ error: 'Login failed. Please try again.' })
   }
 }

@@ -1,33 +1,27 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { initializeDatabase } from '../scripts/init-db.js'
+import { postgresFixture } from './postgresql.js'
 
 export async function fixture(t) {
-  const directory = await mkdtemp(join(tmpdir(), 'vinyl-http-test-'))
   let child
+  // Register child shutdown before schema cleanup: node:test runs after hooks in order.
   t.after(async () => {
-    try {
-      if (child && child.exitCode === null && child.signalCode === null) {
-        const exited = once(child, 'exit')
-        child.kill('SIGTERM')
-        const timer = setTimeout(() => child.kill('SIGKILL'), 3000)
-        try { await exited } finally { clearTimeout(timer) }
-      }
-    } finally {
-      await rm(directory, { recursive: true, force: true })
+    if (child && child.exitCode === null && child.signalCode === null) {
+      const exited = once(child, 'exit')
+      child.kill('SIGTERM')
+      const timer = setTimeout(() => child.kill('SIGKILL'), 3000)
+      try { await exited } finally { clearTimeout(timer) }
     }
   })
-  await initializeDatabase(join(directory, 'database.db'))
-  // db/db.js resolves database.db relative to cwd. Never start in the repository.
+  const { database, schema, directory, childEnv } = await postgresFixture(t)
+  await initializeDatabase(database)
   child = spawn(process.execPath, [fileURLToPath(new URL('../server.js', import.meta.url))], {
     cwd: directory,
-    env: { PORT: '0', NODE_ENV: 'test', SPIRAL_SESSION_SECRET: randomUUID() },
+    env: { ...childEnv, PORT: '0', SPIRAL_SESSION_SECRET: randomUUID() },
     stdio: ['ignore', 'pipe', 'pipe']
   })
   const baseUrl = await new Promise((resolve, reject) => {
@@ -78,7 +72,7 @@ export async function fixture(t) {
       return { status: response.status, body: text ? JSON.parse(text) : null, cookie: setCookie }
     }
   }
-  return { client, directory }
+  return { client, directory, database, schema, childEnv }
 }
 
 export function account(username = 'test-user') {

@@ -43,3 +43,27 @@ test('PostgreSQL foreign keys and account/cart uniqueness are enforced', async t
   await assert.rejects(database.query('INSERT INTO cart_items(user_id, product_id) VALUES ($1, 1)', [user]), { code: '23505' })
   await assert.rejects(database.query('DELETE FROM users WHERE id = $1', [user]), { code: '23503' })
 })
+
+// HTTP regression fixtures use the same verified test-only server and private schemas.
+import { fixture, account, register } from '../test-support/http.js'
+
+test('case-insensitive combined search and literal SQL-looking input preserve catalogue contracts', async t => {
+  const { client } = await fixture(t)
+  const request = client()
+  const response = await request('/api/products?genre=rock&search=dogma')
+  assert.equal(response.status, 200)
+  assert.deepEqual(response.body.map(row => row.id), [1])
+  assert.equal(response.body[0].price, 44.99)
+  assert.equal(typeof response.body[0].price, 'number')
+  assert.equal((await request('/api/products?search=%27%20OR%201%3D1--')).body.length, 0)
+})
+
+test('racing duplicate registrations preserve 400 response and unauthenticated loser', async t => {
+  const { client, database } = await fixture(t)
+  const clients = [client(), client()]
+  const responses = await Promise.all(clients.map(request => request('/api/auth/register', { method: 'POST', body: account('racing') })))
+  assert.deepEqual(responses.map(row => row.status).sort(), [201, 400])
+  const loser = clients[responses.findIndex(row => row.status === 400)]
+  assert.deepEqual((await loser('/api/auth/me')).body, { isLoggedIn: false })
+  assert.equal((await database.query('SELECT COUNT(*) AS n FROM users')).rows[0].n, '1')
+})
