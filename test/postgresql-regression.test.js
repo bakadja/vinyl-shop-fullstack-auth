@@ -143,3 +143,53 @@ test('graceful shutdown finishes an in-flight cart request and closes database s
     assert.equal((await exited)[0], 0)
   } finally { release(); await transaction }
 })
+
+import { readFile, writeFile, symlink } from 'node:fs/promises'
+import { execFileSync, spawn } from 'node:child_process'
+import { once } from 'node:events'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+test('npm initialization works without .env and supplied environment overrides an optional file', async t => {
+  const isolated = await postgresFixture(t)
+  const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+  packageJson.scripts['db:init'] = packageJson.scripts['db:init'].replace('scripts/init-db.js', fileURLToPath(new URL('../scripts/init-db.js', import.meta.url)))
+  await writeFile(join(isolated.directory, 'package.json'), JSON.stringify(packageJson))
+
+  const env = { ...isolated.childEnv, PATH: process.env.PATH }
+  const run = () => execFileSync('npm', ['run', 'db:init'], { cwd: isolated.directory, env, encoding: 'utf8', stdio: 'pipe' })
+  assert.match(run(), /catalogue only, no users or carts/)
+  await writeFile(join(isolated.directory, '.env'), 'DATABASE_URL=postgresql://invalid:invalid@127.0.0.1:1/invalid\n')
+  assert.match(run(), /catalogue only, no users or carts/)
+  await writeFile(join(isolated.directory, '.env'), `DATABASE_URL=${isolated.childEnv.DATABASE_URL}\n`)
+  delete env.DATABASE_URL
+  assert.match(run(), /catalogue only, no users or carts/)
+  assert.equal((await isolated.database.query('SELECT COUNT(*) AS n FROM products')).rows[0].n, '10')
+})
+
+test('npm start accepts environment-only configuration and serves PostgreSQL catalogue', async t => {
+  let child
+  t.after(async () => {
+    if (child && child.exitCode === null && child.signalCode === null) {
+      const exited = once(child, 'exit')
+      process.kill(-child.pid, 'SIGTERM')
+      await exited
+    }
+  })
+  const isolated = await postgresFixture(t)
+  await initializeDatabase(isolated.database)
+  const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+  await writeFile(join(isolated.directory, 'package.json'), JSON.stringify(packageJson))
+  await symlink(fileURLToPath(new URL('../server.js', import.meta.url)), join(isolated.directory, 'server.js'))
+  child = spawn('npm', ['start'], { detached: true, cwd: isolated.directory, env: { ...isolated.childEnv, PORT: '0', PATH: process.env.PATH, SPIRAL_SESSION_SECRET: 'synthetic-cli-test-secret' }, stdio: ['ignore', 'pipe', 'pipe'] })
+  const baseUrl = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('npm start timed out')), 10000)
+    child.once('error', error => { clearTimeout(timer); reject(error) })
+    child.once('exit', () => { clearTimeout(timer); reject(new Error('npm start exited before readiness')) })
+    child.stdout.on('data', data => {
+      const match = String(data).match(/localhost:(\d+)/)
+      if (match) { clearTimeout(timer); resolve(`http://127.0.0.1:${match[1]}`) }
+    })
+  })
+  assert.equal((await (await fetch(`${baseUrl}/api/products`)).json()).length, 10)
+})

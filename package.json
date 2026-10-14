@@ -5,9 +5,10 @@
     "main": "server.js",
     "type": "module",
     "scripts": {
-        "start": "node server.js",
-        "db:init": "node scripts/init-db.js",
-        "test": "node --test"
+        "start": "node --env-file-if-exists=.env server.js",
+        "db:init": "node --env-file-if-exists=.env scripts/init-db.js",
+        "test": "node --test",
+        "test:postgres": "bash scripts/start-test-postgres.sh npm test"
     },
     "author": "Kevin Ngongang",
     "license": "ISC",
