@@ -72,7 +72,8 @@ export async function fixture(t) {
       return { status: response.status, body: text ? JSON.parse(text) : null, cookie: setCookie }
     }
   }
-  return { client, directory, database, schema, childEnv }
+  return { client, directory, database, schema, childEnv,
+    shutdown: () => { const exited = once(child, 'exit'); child.kill('SIGTERM'); return exited } }
 }
 
 export function account(username = 'test-user') {

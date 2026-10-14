@@ -1,3 +1,4 @@
+import { closeDatabase } from './db/db.js'
 import express from 'express'
 import { productsRouter } from './routes/products.js'
 import { authRouter } from './routes/auth.js'
@@ -52,3 +53,17 @@ const server = app.listen(PORT, () => {
 }).on('error', (err) => {
   console.error('Failed to start server:', err)
 })
+
+let shuttingDown = false
+function shutdown() {
+  if (shuttingDown) return
+  shuttingDown = true
+  server.close(async () => {
+    try { await closeDatabase() } catch {
+      console.error('PostgreSQL shutdown failed')
+      process.exitCode = 1
+    }
+  })
+}
+process.once('SIGTERM', shutdown)
+process.once('SIGINT', shutdown)

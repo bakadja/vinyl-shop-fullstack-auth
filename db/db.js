@@ -1,19 +1,3 @@
-import sqlite3 from 'sqlite3'
-import { open } from 'sqlite'
-import path from 'node:path'
-
-export async function getDBConnection() {
-
-const dbPath = path.join('database.db')
-
- return open({
-   filename: dbPath,
-   driver: sqlite3.Database
- }) 
- 
-} 
-
-// The legacy SQLite export remains only until all consumers have migrated.
 import pg from 'pg'
 import { databaseConfig } from './config.js'
 

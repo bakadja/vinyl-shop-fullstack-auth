@@ -109,3 +109,37 @@ test('unsafe aggregate values fail with sanitized JSON instead of rounded counts
   assert.equal(response.status, 500)
   assert.deepEqual(response.body, { error: 'Internal server error' })
 })
+
+test('graceful shutdown finishes an in-flight cart request and closes database sessions', async t => {
+  const { client, database, shutdown } = await fixture(t)
+  const request = client()
+  await register(request)
+  await request('/api/cart/add', { method: 'POST', body: { productId: 1 } })
+  let release
+  let locked
+  const lockReady = new Promise(resolve => { locked = resolve })
+  const gate = new Promise(resolve => { release = resolve })
+  const transaction = database.transaction(async connection => {
+    await connection.query('LOCK TABLE cart_items IN ACCESS EXCLUSIVE MODE')
+    locked()
+    await gate
+  })
+  await lockReady
+  const pending = request('/api/cart/add', { method: 'POST', body: { productId: 1 } })
+  // Attach an error handler immediately while checking server-side blocked activity.
+  pending.catch(() => {})
+  let waiting = false
+  for (let i = 0; i < 100; i++) {
+    waiting = (await database.query("SELECT 1 FROM pg_stat_activity WHERE application_name = 'vinyl-shop' AND wait_event_type = 'Lock'")).rows.length > 0
+    if (waiting) break
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+  try {
+    assert.ok(waiting, 'HTTP query must be waiting on the database lock')
+    const exited = shutdown()
+    release()
+    await transaction
+    assert.equal((await pending).status, 200)
+    assert.equal((await exited)[0], 0)
+  } finally { release(); await transaction }
+})
