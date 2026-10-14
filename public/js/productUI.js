@@ -1,3 +1,4 @@
+import { getProducts } from './productService.js'
 import { addBtnListeners } from './cartService.js'
 
 // ===== Rendering products =====
@@ -35,10 +36,23 @@ export function renderProducts(products) {
 
 // ===== Handling filtering =====
 
+let latestRequest = 0
+
 export async function applySearchFilter() {
+  const request = ++latestRequest
   const search = document.getElementById('search-input').value.trim()
+  const genre = document.getElementById('genre-select').value
   const filters = {}
   if (search) filters.search = search
-  const products = await getProducts(filters)
-  renderProducts(products)
+  if (genre) filters.genre = genre
+  try {
+    const products = await getProducts(filters)
+    if (request !== latestRequest) return
+    renderProducts(products)
+  } catch {
+    if (request !== latestRequest) return
+    const message = document.createElement('p')
+    message.textContent = 'Unable to load products. Please try again.'
+    document.getElementById('products-container').replaceChildren(message)
+  }
 }

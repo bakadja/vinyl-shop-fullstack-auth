@@ -104,7 +104,7 @@ test('empty cart clears old rows and disables checkout', async t => {
 test('unauthorized cart retains login link and redirect', async t => {
   const document = domFixture(t)
   const dom = cartDom(document)
-  t.mock.method(globalThis, 'fetch', async () => ({ ok: false }))
+  t.mock.method(globalThis, 'fetch', async () => ({ ok: false, status: 401 }))
   await loadCart(dom)
   assert.equal(window.location.href, '/')
   assert.equal(dom.checkoutBtn.disabled, true)

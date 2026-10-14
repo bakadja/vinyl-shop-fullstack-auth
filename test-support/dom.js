@@ -5,9 +5,14 @@ export class Element {
     this.tagName = tagName.toUpperCase()
     this.children = []
     this.dataset = {}
+    this.style = {}
+    this.disabled = false
     this.className = ''
     this.listeners = {}
-    this.classList = { add: name => { this.className += ` ${name}` } }
+    this.classList = {
+      add: name => { this.className += ` ${name}` },
+      remove: name => { this.className = this.className.split(' ').filter(value => value !== name).join(' ') }
+    }
   }
   set innerHTML(_) { throw new Error('HTML parsing sink used') }
   set outerHTML(_) { throw new Error('HTML parsing sink used') }
