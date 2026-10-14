@@ -64,7 +64,7 @@ A full-stack web application for a vintage vinyl record store with user authenti
 
 2. **Install dependencies**
    ```bash
-   npm install
+   npm ci
    ```
 
 3. **Set up environment variables** (optional)
@@ -74,7 +74,21 @@ A full-stack web application for a vintage vinyl record store with user authenti
    *Note: If not set, a default secret will be used for development*
 
 4. **Initialize the database**
-   The SQLite database will be automatically created when you first run the application.
+   From the repository root, run:
+   ```bash
+   npm run db:init
+   ```
+   This creates a local `database.db` from `db/init.sql`, with ten fictional demo
+   records and empty `users` and `cart_items` tables. Create a new account through
+   the signup page; no old accounts or carts are imported.
+
+   Initialization refuses to overwrite an existing database. If updating an old
+   checkout, back up your local database outside the repository, then explicitly
+   move or remove `database.db` before running the command. Existing databases are
+   not sanitized automatically. SQLite files and journals are ignored by Git.
+
+   Removing the database from the current source tree does not remove copies from
+   earlier Git commits; this change does not rewrite repository history.
 
 5. **Start the server**
    ```bash
@@ -170,6 +184,11 @@ vinyl-shop-fullstack-auth/
 | `PORT` | Server port | `8000` |
 
 ### Database
+
+Initialize a fresh local demo database with `npm run db:init`. Run `npm test` to
+verify the schema, empty account/cart tables, catalogue image paths and filtering,
+new-user/cart queries, CLI initialization, and protection against overwriting an
+existing database. Tests use temporary databases and never access your local data.
 
 The application uses SQLite for data persistence with the following tables:
 - `users` - User account information

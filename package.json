@@ -5,7 +5,9 @@
     "main": "server.js",
     "type": "module",
     "scripts": {
-        "start": "node server.js"
+        "start": "node server.js",
+        "db:init": "node scripts/init-db.js",
+        "test": "node --test"
     },
     "author": "Kevin Ngongang",
     "license": "ISC",
