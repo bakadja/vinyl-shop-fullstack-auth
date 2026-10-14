@@ -37,11 +37,11 @@ Local validation on macOS with Node.js `v24.21.0`:
 | `npm ci` | Passed; locked dependencies installed. npm reports sqlite3's existing native install script for review. |
 | `npm audit --audit-level=high` | Passed; zero vulnerabilities. |
 | `npm test` | Passed: 55 tests, zero failures/skips. |
-| GitHub Actions `test` (Linux) | Pending draft PR run. |
-| GitHub Actions `test-macos` (macOS) | Pending draft PR run. |
-| SonarCloud Code Analysis / Quality Gate | Pending draft PR analysis. |
+| GitHub Actions `test` (Linux) | SUCCESS — [run 38634249345](https://github.com/bakadja/vinyl-shop-fullstack-auth/actions/runs/38634249345), implementation commit `49c537c`. |
+| GitHub Actions `test-macos` (macOS) | SUCCESS — same run and implementation commit. |
+| SonarCloud Code Analysis / Quality Gate | PASSED — [PR #6 analysis](https://sonarcloud.io/dashboard?id=bakadja_vinyl-shop-fullstack-auth&pullRequest=6), API status `OK`. |
 
-Remote results will be recorded in the draft PR description after the checks complete. This document records implementation and local evidence; the PR's checks identify the exact analyzed commit.
+SonarCloud returned OK for every gate condition: new reliability/security/maintainability ratings A (1, maximum 1), new duplication 0.0% (maximum 3%) and security hotspots reviewed 100% (minimum 100%). Coverage is not a condition returned by this gate; no measured coverage percentage is claimed. The [draft PR #6](https://github.com/bakadja/vinyl-shop-fullstack-auth/pull/6) description records the final head and check links after this documentation update; its checks identify the exact analyzed commit.
 
 ## Remaining limitations
 
