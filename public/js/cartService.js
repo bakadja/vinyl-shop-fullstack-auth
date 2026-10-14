@@ -29,10 +29,17 @@ export async function updateCartIcon() {
     const obj = await res.json()
     const totalItems = obj.totalItems
 
-    document.getElementById('cart-banner').innerHTML =
-      totalItems > 0
-        ? `<a href="/cart.html"><img src="images/cart.png" alt="cart">${totalItems}</a>`
-        : ''
+    const banner = document.getElementById('cart-banner')
+    banner.replaceChildren()
+    if (totalItems > 0) {
+      const link = document.createElement('a')
+      link.href = '/cart.html'
+      const image = document.createElement('img')
+      image.src = 'images/cart.png'
+      image.alt = 'cart'
+      link.append(image, String(totalItems))
+      banner.appendChild(link)
+    }
   } catch (err) {
     console.error('Error updating cart icon:', err)
   }
@@ -47,7 +54,9 @@ export async function loadCart(dom) {
     updateCartTotal(items, cartTotal, checkoutBtn)
   } catch (err) {
     console.error('Error loading cart:', err)
-    cartList.innerHTML = '<li>Error loading cart data.</li>'
+    const message = document.createElement('li')
+    message.textContent = 'Error loading cart data.'
+    cartList.replaceChildren(message)
   }
 }
 
@@ -58,7 +67,10 @@ async function fetchCartItems({ userMessage, checkoutBtn }) {
     window.location.href = '/'
     checkoutBtn.disabled = true
     checkoutBtn.classList.add('disabled')
-    userMessage.innerHTML = 'Please <a href="login.html">log in</a>.'
+    const loginLink = document.createElement('a')
+    loginLink.href = 'login.html'
+    loginLink.textContent = 'log in'
+    userMessage.replaceChildren('Please ', loginLink, '.')
     return []
   }
 
@@ -67,7 +79,7 @@ async function fetchCartItems({ userMessage, checkoutBtn }) {
 }
 
 function renderCartItems(items, cartList) {
-  cartList.innerHTML = ''
+  cartList.replaceChildren()
 
   items.forEach(item => {
     const li = document.createElement('li')
@@ -75,13 +87,18 @@ function renderCartItems(items, cartList) {
 
     const itemTotal = item.price * item.quantity
 
-    li.innerHTML = `
-      <div>
-        <strong>${item.title}: </strong>
-        <button data-id="${item.cartItemId}" class="remove-btn">🗑️</button>
-      </div>
-      <span>× ${item.quantity} = $${itemTotal.toFixed(2)}</span>
-    `
+    const details = document.createElement('div')
+    const title = document.createElement('strong')
+    title.textContent = `${item.title}: `
+    const removeButton = document.createElement('button')
+    removeButton.dataset.id = item.cartItemId
+    removeButton.className = 'remove-btn'
+    removeButton.textContent = '🗑️'
+    details.append(title, ' ', removeButton)
+
+    const subtotal = document.createElement('span')
+    subtotal.textContent = `× ${item.quantity} = $${itemTotal.toFixed(2)}`
+    li.append(details, subtotal)
 
     cartList.appendChild(li)
   })
@@ -89,7 +106,7 @@ function renderCartItems(items, cartList) {
 
 function updateCartTotal(items, cartTotal, checkoutBtn) {
   const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  cartTotal.innerHTML = `Total: $${total.toFixed(2)}`
+  cartTotal.textContent = `Total: $${total.toFixed(2)}`
 
   if (total <= 0) {
     checkoutBtn.disabled = true

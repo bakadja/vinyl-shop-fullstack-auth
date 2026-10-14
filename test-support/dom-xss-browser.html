@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>DOM XSS browser regression</title>
+<h1>DOM XSS browser regression</h1>
+<pre id="result">RUNNING</pre>
+<div id="products-container"></div>
+<div id="cart-banner"></div>
+<ul id="cart-list"></ul><p id="cart-total"></p><p id="user-message"></p><button id="checkout-btn">Checkout</button>
+<script type="module">
+import { renderProducts } from './js/productUI.js'
+import { loadCart, updateCartIcon } from './js/cartService.js'
+const checks = []
+function check(condition, name) {
+  if (!condition) throw new Error(name)
+  checks.push(name)
+}
+try {
+  globalThis.xss = 0
+  const html = '<img src=x onerror="globalThis.xss=1"><svg onload="globalThis.xss=1"></svg><script>globalThis.xss=1<' + '/script>&'
+  const attribute = '1" onclick="globalThis.xss=1'
+  renderProducts([{ title: html, artist: html, price: html, genre: html, id: attribute, image: 'missing.png" onerror="globalThis.xss=1' }])
+  const card = document.querySelector('.product-card')
+  check(card.querySelector('h2').textContent === html && card.querySelector('h3').textContent === html && card.querySelector('.genre-label').textContent === html, 'product text remains literal')
+  check(card.querySelector('img').getAttribute('alt') === html && !card.querySelector('img').hasAttribute('onerror'), 'image attributes cannot break out')
+  check(card.querySelector('button').dataset.id === attribute && !card.querySelector('button').hasAttribute('onclick'), 'product ID remains an inert attribute')
+  const dom = {
+    cartList: document.getElementById('cart-list'), cartTotal: document.getElementById('cart-total'),
+    userMessage: document.getElementById('user-message'), checkoutBtn: document.getElementById('checkout-btn')
+  }
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ items: [{ title: html, cartItemId: attribute, price: 12.5, quantity: 2 }] }) })
+  await loadCart(dom)
+  check(dom.cartList.querySelector('strong').textContent === html + ': ', 'cart title remains literal')
+  check(dom.cartList.querySelector('button').dataset.id === attribute && !dom.cartList.querySelector('button').hasAttribute('onclick'), 'cart ID remains an inert attribute')
+  check(dom.cartTotal.textContent === 'Total: $25.00', 'cart total remains correct')
+  globalThis.fetch = async () => ({ json: async () => ({ totalItems: 3 }) })
+  await updateCartIcon()
+  check(document.querySelector('#cart-banner a').getAttribute('href') === '/cart.html' && document.getElementById('cart-banner').textContent === '3', 'cart navigation and count remain correct')
+  await new Promise(resolve => setTimeout(resolve, 200))
+  check(globalThis.xss === 0 && !document.querySelector('#products-container script, #products-container svg, #cart-list img, #cart-list script, #cart-list svg, [onerror], [onclick], [onload]'), 'no injected nodes, event handlers or executed payload')
+  document.getElementById('result').textContent = `PASS ${checks.length}/${checks.length}\n` + checks.join('\n')
+} catch (error) {
+  document.getElementById('result').textContent = `FAIL: ${error.message}\n` + checks.join('\n')
+}
+</script>
+</html>
