@@ -1,11 +1,11 @@
 # 🎵 Spiral Sounds - Vinyl Shop
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
-[![Express.js](https://img.shields.io/badge/Express.js-4.21.2-blue.svg)](https://expressjs.com/)
-[![SQLite](https://img.shields.io/badge/SQLite-3-lightgrey.svg)](https://www.sqlite.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-24-green.svg)](https://nodejs.org/)
+[![Express.js](https://img.shields.io/badge/Express.js-4-blue.svg)](https://expressjs.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-blue.svg)](https://www.postgresql.org/)
 
-A full-stack web application for a vintage vinyl record store with user authentication, shopping cart functionality, and product management. Built with Node.js, Express, and SQLite.
+A full-stack web application for a vintage vinyl record store with user authentication, shopping cart functionality, and product management. Built with Node.js 24, Express 4, and PostgreSQL.
 
 ![Spiral Sounds Logo](public/images/spiral_logo.png)
 
@@ -32,7 +32,7 @@ A full-stack web application for a vintage vinyl record store with user authenti
 
 ### 🛒 Shopping Cart
 - Add/remove items from cart
-- Persistent cart storage in SQLite database
+- Persistent cart storage in PostgreSQL
 - Real-time cart updates
 - User-specific cart management
 
@@ -40,7 +40,7 @@ A full-stack web application for a vintage vinyl record store with user authenti
 - Browse vinyl record collection
 - Product details and images
 - Responsive product grid layout
-- SQLite database for product storage
+- PostgreSQL database for product storage
 
 ### 🎨 User Interface
 - Clean, modern design
@@ -52,7 +52,8 @@ A full-stack web application for a vintage vinyl record store with user authenti
 
 ### Prerequisites
 
-- Node.js 18+ 
+- Node.js 24
+- PostgreSQL 17 (Docker/Colima or a separately managed server)
 - npm or yarn package manager
 
 ### Setup Instructions
@@ -68,28 +69,23 @@ A full-stack web application for a vintage vinyl record store with user authenti
    npm ci
    ```
 
-3. **Set up environment variables** (optional)
-   ```bash
-   export SPIRAL_SESSION_SECRET="your-secret-key-here"
-   ```
-   *Note: If not set, a default secret will be used for development*
+3. **Configure and start PostgreSQL**
+   Copy `.env.example` to `.env`, replace its placeholders locally, then start the
+   development database with `docker compose up -d --wait postgres` (or the
+   standalone `docker-compose` equivalent). The `.env` file is optional: shell,
+   CI and Azure environment variables are supported directly.
+
+   See [PostgreSQL migration/setup](docs/postgresql-migration.md) for Colima on
+   Apple Silicon, separate disposable tests, verified TLS and deliberate resets.
+   Keep your existing session configuration; this PR does not change it.
 
 4. **Initialize the database**
-   From the repository root, run:
    ```bash
    npm run db:init
    ```
-   This creates a local `database.db` from `db/init.sql`, with ten fictional demo
-   records and empty `users` and `cart_items` tables. Create a new account through
-   the signup page; no old accounts or carts are imported.
-
-   Initialization refuses to overwrite an existing database. If updating an old
-   checkout, back up your local database outside the repository, then explicitly
-   move or remove `database.db` before running the command. Existing databases are
-   not sanitized automatically. SQLite files and journals are ignored by Git.
-
-   Removing the database from the current source tree does not remove copies from
-   earlier Git commits; this change does not rewrite repository history.
+   Seeds the same ten fictional products and no accounts/carts. Initialization is
+   repeatable and preserves existing PostgreSQL rows, including password hashes.
+   Existing SQLite databases are ignored and never imported automatically.
 
 5. **Start the server**
    ```bash
@@ -122,53 +118,31 @@ The application provides RESTful API endpoints for:
 
 ```bash
 npm ci
-npm test                         # All 19 tests: 5 database + 14 HTTP scenarios
-node --test test/database.test.js # Original database tests only
-node --test test/api.test.js      # HTTP integration tests only
+npm audit --audit-level=high
+npm run test:postgres            # Starts/stops a new disposable PostgreSQL 17 cluster
+# Or provision the separate Compose test service, export TEST_DATABASE_URL, then:
+npm test
 ```
 
-No `npm run db:init`, running development server, `.env`, or external service is
-required for tests. The suite uses the built-in Node.js test runner and native
-`fetch`; no additional dependencies are installed. CI uses Node.js 24 on Ubuntu.
+The suite retains the original 57 behavioral tests, with documented PostgreSQL
+adaptations for SQLite-specific setup and schema checks, and adds PostgreSQL
+regressions. DOM XSS and frontend regression files remain unchanged.
 
-Each HTTP scenario initializes a fictional catalogue in a new OS temporary
-directory and starts the real `server.js` in a separate process with that directory
-as its working directory. Because SQLite resolves `database.db` relative to the
-working directory, these requests never open the development database. `PORT=0`
-assigns a free port; each server gets a randomly generated, disposable session
-secret. Independent HTTP clients retain separate session cookies. Servers are
-stopped before their temporary databases are removed, including on test failure.
+Tests require a verified disposable test database, restricted role and
+administrator-owned marker. Each integration fixture creates its own random
+schema, runs the real HTTP server with explicit test configuration, and tears it
+down before schema cleanup. Missing or unsafe test configuration fails the suite;
+there is no development/production fallback or silent integration-test skip.
+The native helper always creates a new private cluster, never uses a workstation
+PostgreSQL service, and cleans it up on exit. It requires PostgreSQL 17 binaries
+(`PG_TEST_BIN`) or Homebrew `postgresql@17`.
 
-The HTTP scenarios cover registration, input validation, duplicate accounts,
-hashed password storage, login and invalid credentials, session inspection,
-logout with reuse of the old cookie, anonymous access to all five cart endpoints,
-public catalogue/genres/filtering/search, cart quantities/counts/removal/clearing,
-cart persistence across login, and isolation between two users. Isolation checks
-include the same product in both carts, attempts to delete the other user's item,
-and clearing one cart without changing the other. The five original database
-tests remain unchanged.
-
-`.github/workflows/api-tests.yml` runs `npm ci` and `npm test` on every pull request
-targeting `main`, including drafts. It uses read-only repository permissions and
-does not require secrets or deploy the application.
-
-### Known issues and limits
-
-- A temporary-database HTTP probe found that adding nonexistent `productId: 9999`
-  returns 200 and increases the cart count to 1, while listing the cart returns
-  no items. The add route does not check product existence, and runtime SQLite
-  connections do not enable foreign-key enforcement. This business behavior is
-  left unchanged; the passing suite does not assert that nonexistent products are
-  rejected. Nonnumeric product IDs and missing cart-item deletion are covered.
-- The README previously listed `/signup` and `POST /logout`; it now documents
-  the actual routes, `/register` and `GET /logout`.
-- `npm ci` reported 20 existing dependency vulnerabilities locally (2 low,
-  4 moderate, 12 high, 2 critical). Dependencies and the lockfile are unchanged;
-  vulnerability remediation is outside this PR.
-- These are API integration tests, not browser/UI, load, or a complete security
-  audit. Static assets are not served from the repository in the temporary working
-  directory. Production session storage, CSRF protection, malformed input types,
-  concurrent requests, and stock enforcement are outside the covered scenarios.
+GitHub Actions runs the full suite on Linux (PostgreSQL service container) and
+macOS (ephemeral native cluster), with Node 24 and a high/critical npm audit gate.
+The mandatory check names remain `test`, `test-macos` and external
+`SonarCloud Code Analysis`. See the [migration record](docs/postgresql-migration.md)
+for validation results, schema differences and limitations. Historical findings
+from previous SQLite PRs remain in the corresponding `docs/` change records.
 
 ## 📚 API Documentation
 
@@ -238,15 +212,13 @@ vinyl-shop-fullstack-auth/
 
 ### Database
 
-Initialize a fresh local demo database with `npm run db:init`. Run `npm test` to
-verify the schema, empty account/cart tables, catalogue image paths and filtering,
-new-user/cart queries, CLI initialization, and protection against overwriting an
-existing database. Tests use temporary databases and never access your local data.
+PostgreSQL persists `users`, `products` and `cart_items`. Configure DATABASE_URL
+or PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD; verified TLS is required outside
+loopback development. Never commit `.env`, credentials or personal database data.
 
-The application uses SQLite for data persistence with the following tables:
-- `users` - User account information
-- `products` - Vinyl record inventory
-- `cart_items` - Shopping cart data
+`npm run db:init` initializes/seeds without overwriting existing rows.
+See [PostgreSQL migration/setup](docs/postgresql-migration.md) for all configuration,
+constraints, test safety rules, Azure compatibility and reset instructions.
 
 ## 🤝 Contributing
 
@@ -270,7 +242,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - Built with [Express.js](https://expressjs.com/) for the backend framework
-- [SQLite](https://www.sqlite.org/) for lightweight database storage
+- [PostgreSQL](https://www.postgresql.org/) and [node-postgres](https://node-postgres.com/) for database access
 - [bcryptjs](https://github.com/dcodeIO/bcrypt.js/) for secure password hashing
 - Vinyl record images and assets for the demo store
 
