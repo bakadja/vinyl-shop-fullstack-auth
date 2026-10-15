@@ -37,11 +37,8 @@ document.getElementById('search-input').addEventListener('input', handleSearch)
 document.querySelector('form').addEventListener('submit', handleSearch)
 document.getElementById('genre-select').addEventListener('change', handleSearch)
 
-// Listeners are already registered, so an in-flight startup request cannot
-// prevent a user-triggered search from running while the module awaits.
-try {
-  await init()
-} catch (error) {
+// Do not block module evaluation: users may search while the initial request is pending.
+void init().catch(error => {
   console.error('Catalogue initialization failed:', error)
   document.getElementById('catalog-message').textContent = 'Unable to initialize the catalogue. Please try again.'
-}
+})

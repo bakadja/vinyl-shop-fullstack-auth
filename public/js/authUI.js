@@ -22,9 +22,8 @@ export async function checkAuth() {
 
 // ===== Greet user or guest =====
 
-export function renderGreeting(name = 'Guest') {
-  // checkAuth returns false for guests; a default parameter alone is insufficient.
-  const user = name === false || name === null || name === '' ? 'Guest' : name
+export function renderGreeting(name) {
+  const user = name || 'Guest'
   document.getElementById('greeting').textContent = `Welcome, ${user}!`
 }
 

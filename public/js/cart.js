@@ -37,11 +37,9 @@ async function init() {
   showHideMenuItems(name)
 } 
  
-// Register cart listeners before waiting for the initial API request.
-try {
-  await init()
-} catch (error) {
+// Let cart actions remain responsive even while the first fetch is pending.
+void init().catch(error => {
   console.error('Cart initialization failed:', error)
   dom.userMessage.textContent = 'Unable to load cart data.'
   dom.checkoutBtn.disabled = true
-}
+})
