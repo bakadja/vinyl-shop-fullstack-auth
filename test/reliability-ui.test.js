@@ -213,13 +213,18 @@ test('catalog bootstrap cannot overwrite a search made during initial loading', 
     if (url.startsWith('/api/products?')) return ++products === 1 ? initial.promise : response([album])
     throw new Error(`Unexpected URL ${url}`)
   })
-  await import(`../public/js/index.js?test=${Date.now()}`)
-  document.getElementById('search-input').value = 'Dogma'
-  document.getElementById('search-input').listeners.input({ preventDefault() {} })
-  await setImmediate()
+  const moduleReady = import(`../public/js/index.js?test=${Date.now()}`)
+  // Module evaluation waits for the initial request, but listeners must work now.
+  const input = document.getElementById('search-input')
+  for (let attempt = 0; attempt < 100 && !input.listeners.input; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+  assert.equal(typeof input.listeners.input, 'function')
+  input.value = 'Dogma'
+  await input.listeners.input({ preventDefault() {} })
   assert.match(document.getElementById('products-container').textContent, /Selling Dogma/)
   initial.resolve(response([]))
-  await setImmediate()
+  await moduleReady
   assert.match(document.getElementById('products-container').textContent, /Selling Dogma/)
 })
 

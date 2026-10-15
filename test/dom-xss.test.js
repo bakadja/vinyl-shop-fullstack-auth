@@ -138,6 +138,10 @@ test('greeting and genre options already keep untrusted API text literal', async
   const document = domFixture(t)
   renderGreeting(html)
   assert.equal(document.getElementById('greeting').textContent, `Welcome, ${html}!`)
+  for (const guest of [undefined, false, '', null]) {
+    renderGreeting(guest)
+    assert.equal(document.getElementById('greeting').textContent, 'Welcome, Guest!')
+  }
   t.mock.method(globalThis, 'fetch', async () => response([html]))
   await populateGenreSelect()
   const option = document.getElementById('genre-select').children[0]
