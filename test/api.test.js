@@ -1,8 +1,5 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import sqlite3 from 'sqlite3'
-import { open } from 'sqlite'
-import { join } from 'node:path'
 import bcrypt from 'bcryptjs'
 import { fixture, account, register } from '../test-support/http.js'
 
@@ -10,7 +7,7 @@ function apiTest(name, run) {
   test(name, { timeout: 20000 }, async t => run(await fixture(t)))
 }
 
-apiTest('registration creates a session and stores a hashed password', async ({ client, directory }) => {
+apiTest('registration creates a session and stores a hashed password', async ({ client, database }) => {
   const request = client()
   const user = account()
   const response = await request('/api/auth/register', { method: 'POST', body: user })
@@ -20,12 +17,9 @@ apiTest('registration creates a session and stores a hashed password', async ({ 
   assert.deepEqual(await request('/api/auth/me'), {
     status: 200, body: { isLoggedIn: true, name: user.name }, cookie: null
   })
-  const db = await open({ filename: join(directory, 'database.db'), driver: sqlite3.Database })
-  try {
-    const row = await db.get('SELECT password FROM users WHERE username = ?', [user.username])
-    assert.notEqual(row.password, user.password)
-    assert.equal(await bcrypt.compare(user.password, row.password), true)
-  } finally { await db.close() }
+  const row = (await database.query('SELECT password FROM users WHERE username = $1', [user.username])).rows[0]
+  assert.notEqual(row.password, user.password)
+  assert.equal(await bcrypt.compare(user.password, row.password), true)
 })
 
 apiTest('registration rejects missing fields, invalid email and invalid username', async ({ client }) => {

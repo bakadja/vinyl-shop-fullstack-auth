@@ -1,34 +1,26 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import sqlite3 from 'sqlite3'
-import { open } from 'sqlite'
-import { join } from 'node:path'
 import { fixture, register } from '../test-support/http.js'
 
 function apiTest(name, run) {
   test(name, { timeout: 20000 }, async t => run(await fixture(t)))
 }
-async function database(directory, run) {
-  const db = await open({ filename: join(directory, 'database.db'), driver: sqlite3.Database })
-  try { return await run(db) } finally { await db.close() }
-}
-
-apiTest('invalid product IDs never create hidden cart records', async ({ client, directory }) => {
+apiTest('invalid product IDs never create hidden cart records', async ({ client, database }) => {
   const request = client()
   await register(request)
   for (const productId of [undefined, null, '', ' ', 0, -1, 1.5, '1.5', '1x', '1e0', '+1', '0x1', true, [1], {}, Number.MAX_SAFE_INTEGER + 1]) {
     const response = await request('/api/cart/add', { method: 'POST', body: { productId } })
     assert.equal(response.status, 400, JSON.stringify(productId))
   }
-  assert.equal(await database(directory, db => db.get('SELECT COUNT(*) AS count FROM cart_items').then(row => row.count)), 0)
+  assert.equal(Number((await database.query('SELECT COUNT(*) AS count FROM cart_items')).rows[0].count), 0)
   assert.deepEqual((await request('/api/cart/cart-count')).body, { totalItems: 0 })
 })
 
-apiTest('missing products return 404 without leaving cart records', async ({ client, directory }) => {
+apiTest('missing products return 404 without leaving cart records', async ({ client, database }) => {
   const request = client()
   await register(request)
   assert.equal((await request('/api/cart/add', { method: 'POST', body: { productId: 99999 } })).status, 404)
-  assert.equal(await database(directory, db => db.get('SELECT COUNT(*) AS count FROM cart_items').then(row => row.count)), 0)
+  assert.equal(Number((await database.query('SELECT COUNT(*) AS count FROM cart_items')).rows[0].count), 0)
 })
 
 apiTest('concurrent numeric and string product additions keep one line and every increment', async ({ client }) => {
@@ -74,10 +66,10 @@ apiTest('non-string authentication fields return JSON 400 and leave the server u
   await register(request)
 })
 
-apiTest('database rejections yield sanitized JSON errors and the server stays alive', async ({ client, directory }) => {
+apiTest('database rejections yield sanitized JSON errors and the server stays alive', async ({ client, database }) => {
   const request = client()
   await register(request)
-  await database(directory, db => db.exec('DROP TABLE cart_items; DROP TABLE products'))
+  await database.query('DROP TABLE cart_items; DROP TABLE products')
   for (const [path, method, body] of [['/api/cart','GET'], ['/api/cart/cart-count','GET'], ['/api/cart/add','POST',{ productId: 1 }], ['/api/cart/1','DELETE'], ['/api/cart/all','DELETE'], ['/api/products','GET'], ['/api/products/genres','GET']]) {
     const result = await request(path, { method, body })
     assert.equal(result.status, 500)

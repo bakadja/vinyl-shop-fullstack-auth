@@ -5,9 +5,10 @@
     "main": "server.js",
     "type": "module",
     "scripts": {
-        "start": "node server.js",
-        "db:init": "node scripts/init-db.js",
-        "test": "node --test"
+        "start": "node --env-file-if-exists=.env server.js",
+        "db:init": "node --env-file-if-exists=.env scripts/init-db.js",
+        "test": "node --test",
+        "test:postgres": "bash scripts/start-test-postgres.sh npm test"
     },
     "author": "Kevin Ngongang",
     "license": "ISC",
@@ -15,8 +16,7 @@
         "bcryptjs": "^3.0.2",
         "express": "^4.22.3",
         "express-session": "^1.18.2",
-        "sqlite": "^5.1.1",
-        "sqlite3": "^6.0.1",
+        "pg": "^8.23.1",
         "validator": "^13.15.35"
     }
 }
