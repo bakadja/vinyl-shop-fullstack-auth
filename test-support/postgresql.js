@@ -67,8 +67,12 @@ export async function postgresFixture(t, env = process.env) {
     }
   })
   await verifyTestServer(guard)
-  await guard.query(`CREATE SCHEMA "${schema}"`)
-  identity = (await guard.query('SELECT oid, nspowner FROM pg_namespace WHERE nspname = $1', [schema])).rows[0]
+  identity = await guard.transaction(async client => {
+    await client.query(`CREATE SCHEMA "${schema}"`)
+    const registered = (await client.query('SELECT oid, nspowner FROM pg_namespace WHERE nspname = $1', [schema])).rows[0]
+    if (!registered) throw new Error('Unable to register test schema identity')
+    return registered
+  })
   database = createDatabase({ ...config, options: `-c search_path=${schema}`, application_name: `vinyl-test-${schema}` })
   directory = await mkdtemp(join(tmpdir(), 'vinyl-postgres-test-'))
   return { database, schema, directory, childEnv: {

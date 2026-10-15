@@ -105,3 +105,43 @@ test('atomic cleanup helper cannot target public, control or forged schema ident
   await assert.rejects(database.query('SELECT vinyl_test_control.drop_test_schema($1, 0::oid, 0::oid)', [schema]), /identity changed/)
   assert.equal((await database.query('SELECT nspname FROM pg_namespace WHERE nspname = $1', [schema])).rows.length, 1)
 })
+
+for (const failure of ['query failure', 'missing identity']) {
+  test(`schema creation rolls back on identity registration ${failure}`, async t => {
+    const observer = await postgresFixture(t)
+    const hooks = []
+    const query = pg.Client.prototype.query
+    const injected = new Error('Synthetic identity registration failure')
+    let createdSchema
+    const interleave = t.mock.method(pg.Client.prototype, 'query', async function (...args) {
+      const statement = String(args[0])
+      const creation = statement.match(/^CREATE SCHEMA "(vinyl_test_[0-9a-f]{32})"$/)
+      if (createdSchema && statement.includes('SELECT oid, nspowner FROM pg_namespace WHERE nspname = $1') && args[1]?.[0] === createdSchema) {
+        const callback = args.at(-1)
+        if (typeof callback === 'function') {
+          callback(failure === 'query failure' ? injected : null, { rows: [] })
+          return
+        }
+        if (failure === 'query failure') throw injected
+        return { rows: [] }
+      }
+      const result = await query.apply(this, args)
+      if (creation) {
+        assert.equal(hooks.length, 1, 'Cleanup must be registered before schema creation')
+        createdSchema = creation[1]
+      }
+      return result
+    })
+    try {
+      await assert.rejects(postgresFixture({ after: callback => hooks.push(callback) }), failure === 'query failure' ? error => error === injected : /identity/)
+      assert.match(createdSchema, /^vinyl_test_[0-9a-f]{32}$/)
+      const remaining = await observer.database.query('SELECT oid FROM pg_namespace WHERE nspname = $1', [createdSchema])
+      assert.equal(remaining.rows.length, 0, 'Failed setup must not leave a temporary schema')
+    } finally {
+      interleave.mock.restore()
+      for (const cleanup of hooks) await cleanup()
+      // Only needed to clean the deliberately reproduced pre-fix leak.
+      if (createdSchema) await observer.database.query(`DROP SCHEMA IF EXISTS "${createdSchema}"`)
+    }
+  })
+}

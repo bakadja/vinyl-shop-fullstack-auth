@@ -15,20 +15,24 @@ const constraints = {
   cart_items: ['PRIMARY KEY (id)', 'UNIQUE (user_id, product_id)', 'FOREIGN KEY (user_id) REFERENCES users(id)', 'FOREIGN KEY (product_id) REFERENCES products(id)']
 }
 
+function validateColumns(rows) {
+  for (const [table, fields] of Object.entries(columns)) {
+    const actual = rows.filter(row => row.table_name === table)
+    if (actual.length !== Object.keys(fields).length) throw new Error('Incompatible PostgreSQL schema')
+    for (const [name, [type, required]] of Object.entries(fields)) {
+      const column = actual.find(row => row.name === name)
+      if (column?.type !== type || column.required !== required || name === 'id' && column.identity !== 'd') throw new Error('Incompatible PostgreSQL schema')
+    }
+  }
+}
+
 async function validateSchema(client) {
   const { rows } = await client.query(`SELECT c.relname AS table_name, a.attname AS name, format_type(a.atttypid, a.atttypmod) AS type,
     a.attnotnull AS required, a.attidentity AS identity, pg_get_expr(d.adbin, d.adrelid) AS default_value
     FROM pg_class c JOIN pg_attribute a ON a.attrelid = c.oid
     LEFT JOIN pg_attrdef d ON d.adrelid = c.oid AND d.adnum = a.attnum
     WHERE c.relnamespace = current_schema()::regnamespace AND c.relname = ANY($1) AND a.attnum > 0 AND NOT a.attisdropped`, [Object.keys(columns)])
-  for (const [table, fields] of Object.entries(columns)) {
-    const actual = rows.filter(row => row.table_name === table)
-    if (actual.length !== Object.keys(fields).length) throw new Error('Incompatible PostgreSQL schema')
-    for (const [name, [type, required]] of Object.entries(fields)) {
-      const column = actual.find(row => row.name === name)
-      if (!column || column.type !== type || column.required !== required || name === 'id' && column.identity !== 'd') throw new Error('Incompatible PostgreSQL schema')
-    }
-  }
+  validateColumns(rows)
   const definitions = (await client.query(`SELECT c.relname AS table_name, pg_get_constraintdef(k.oid) AS definition,
     k.convalidated, k.condeferrable, k.confdeltype, k.confupdtype
     FROM pg_constraint k JOIN pg_class c ON c.oid = k.conrelid

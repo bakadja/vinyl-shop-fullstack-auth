@@ -15,7 +15,8 @@ export async function getCurrentUser(req, res) {
     res.json({ isLoggedIn: true, name: user.name})
 
   } catch (err) {
-    console.error('Current user database operation failed')
+    if (err?.code === 'ECONNREFUSED') console.error('Current user database connection refused')
+    else console.error('Current user database operation failed')
     res.status(500).json({ error: 'Internal server error' })
   }
 } 

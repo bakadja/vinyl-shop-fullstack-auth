@@ -87,7 +87,8 @@ export async function loginUser(req, res) {
     res.json({ message: 'Logged in' })
 
   } catch (err) {
-    console.error('Login database operation failed')
+    if (err?.code === 'ECONNREFUSED') console.error('Login database connection refused')
+    else console.error('Login database operation failed')
     res.status(500).json({ error: 'Login failed. Please try again.' })
   }
 }

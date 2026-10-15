@@ -248,3 +248,51 @@ PR; no merge or auto-merge is authorized.
 - [node-postgres TLS and URL override behavior](https://node-postgres.com/features/ssl)
 - [PostgreSQL 17 schemas/privileges](https://www.postgresql.org/docs/17/ddl-schemas.html)
 - [GitHub service containers require Linux](https://docs.github.com/en/actions/tutorials/use-containerized-services/use-docker-service-containers)
+
+## Final reliability and Sonar hardening (2026-10-15)
+
+The follow-up preserves the existing 83 tests/assertions and resolves the nine
+reported findings without suppressing rules:
+
+| Finding | Correction |
+| --- | --- |
+| Four shell S7688 reliability findings | Replace all four Bash `[ ... ]` tests with `[[ ... ]]`; retain strict mode, quoting, traps and failure handling |
+| databaseConfig S3776 (complexity 23) | Extract URL/TLS-option parsing, connection validation and verified-TLS construction into focused private helpers |
+| validateSchema S3776 (complexity 16) | Extract column compatibility checks into validateColumns, preserving default/constraint validation and sequence locks |
+| Column lookup S6582 | Use optional chaining for the missing-column/type check |
+| Login and current-user S2486 | Explicitly classify ECONNREFUSED into fixed diagnostics; preserve generic handling for other failures and unchanged sanitized HTTP 500 bodies |
+
+Test schema creation and identity lookup now use one PostgreSQL transaction. A
+failed lookup or missing identity rolls back CREATE SCHEMA; the cleanup hook is
+still registered before setup, and the cleanup identity is published only after
+commit. The restricted test role, server checks, exact namespace OID/owner and
+protected cleanup function are unchanged. No DROP DATABASE or broader cleanup
+permission is introduced.
+
+Five regressions were added: failed identity query, empty identity result,
+sanitized login connection refusal, sanitized current-user connection refusal,
+and native startup failure cleaning temporary paths containing spaces. The two
+schema tests interpose only at the pg driver boundary and inspect real PostgreSQL
+catalogs; both fail against the previous implementation. Original assertions,
+including DOM XSS, TLS/numeric checks, authentication, carts/concurrency,
+initialization/sequence safety and graceful shutdown, remain in place.
+
+Local `npm ci` and `npm audit --audit-level=high` pass (0 vulnerabilities). The
+complete native PostgreSQL `npm test` run passes **88 tests**, 0 failures/skips.
+Final Linux/macOS CI and Sonar results for the correction commit are recorded in
+the existing Draft PR #7 after its latest analysis; the earlier 83-test validation
+record above describes the migration baseline.
+
+### Analysis warning investigation
+
+The public SonarCloud PR overview's warning popup states:
+
+> There are problems with file encoding in the source code. Please check the scanner logs for more details.
+
+All tracked non-image/font files decode successfully as UTF-8. No triggering file
+is named in the public warning. The anonymous compute-engine activity endpoint
+returns HTTP 401, so detailed scanner logs could not be inspected through that
+endpoint. The file/root cause is unconfirmed; no source encoding overrides, file
+exclusions or disabled rules were added to hide it. The final PR description
+records whether the warning persists on the latest analysis. Azure connectivity
+and Windows remain unverified, as before.

@@ -3,8 +3,8 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 pgbin=${PG_TEST_BIN:-}
-if [ -z "$pgbin" ] && command -v brew >/dev/null; then pgbin="$(brew --prefix postgresql@17)/bin"; fi
-if [ -z "$pgbin" ]; then echo 'Set PG_TEST_BIN to PostgreSQL 17 binaries.' >&2; exit 1; fi
+if [[ -z "$pgbin" ]] && command -v brew >/dev/null; then pgbin="$(brew --prefix postgresql@17)/bin"; fi
+if [[ -z "$pgbin" ]]; then echo 'Set PG_TEST_BIN to PostgreSQL 17 binaries.' >&2; exit 1; fi
 cluster=$(mktemp -d "${TMPDIR:-/tmp}/vinyl-test-cluster.XXXXXXXX")
 cleanup() {
   "$pgbin/pg_ctl" -D "$cluster/data" -m immediate stop > /dev/null 2>&1 || true
@@ -23,11 +23,11 @@ port=$(node -e 'const s=require("net").createServer();s.listen(0,"127.0.0.1",()=
 "$pgbin/pg_ctl" -D "$cluster/data" -l "$cluster/server.log" -o "-h 127.0.0.1 -p $port -k $cluster" -w -t 30 start > "$cluster/start.log" 2>&1
 for attempt in {1..30}; do
   if "$pgbin/pg_isready" -h 127.0.0.1 -p "$port" -q; then break; fi
-  if [ "$attempt" -eq 30 ]; then echo 'Disposable PostgreSQL startup failed.' >&2; exit 1; fi
+  if [[ "$attempt" -eq 30 ]]; then echo 'Disposable PostgreSQL startup failed.' >&2; exit 1; fi
   sleep 1
 done
 PGPASSWORD="$admin_password" "$pgbin/psql" -X -h 127.0.0.1 -p "$port" -U vinyl_test_admin -d postgres -f "$root/test-support/provision-test-db.sql" > "$cluster/provision.log" 2>&1
 export TEST_DATABASE_URL="postgresql://vinyl_shop_test:${VINYL_TEST_PASSWORD}@127.0.0.1:${port}/vinyl_shop_test"
 unset VINYL_TEST_PASSWORD admin_password PGPASSWORD PGOPTIONS
-if [ "$#" -eq 0 ]; then set -- npm test; fi
+if [[ "$#" -eq 0 ]]; then set -- npm test; fi
 "$@"
