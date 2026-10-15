@@ -44,4 +44,4 @@ async function init() {
 }
 
 // Let cart actions remain responsive even while the first fetch is pending.
-void init()
+queueMicrotask(init)

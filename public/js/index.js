@@ -43,4 +43,4 @@ document.querySelector('form').addEventListener('submit', handleSearch)
 document.getElementById('genre-select').addEventListener('change', handleSearch)
 
 // Do not block module evaluation: users may search while the initial request is pending.
-void init()
+queueMicrotask(init)
