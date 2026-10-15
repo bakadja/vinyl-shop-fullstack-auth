@@ -1,5 +1,6 @@
 import { closeDatabase, getDatabase } from './db/db.js'
 import express from 'express'
+import { fileURLToPath } from 'node:url'
 import { productsRouter } from './routes/products.js'
 import { authRouter, logoutMethodGuard } from './routes/auth.js'
 import { meRouter } from './routes/me.js'
@@ -46,6 +47,9 @@ try {
   app.use('/api/auth/logout',logoutMethodGuard)
   app.use(express.json())
   // Public assets should not read authenticated sessions; HTTPS enforcement stays first.
+  app.get('/favicon.ico', (_req, res) => {
+    res.sendFile(fileURLToPath(new URL('./public/images/spiral_logo.png', import.meta.url)))
+  })
   app.use(express.static('public'))
   app.use(session({store:owner.store,secret:config.secrets,name:config.cookieName,resave:false,saveUninitialized:false,rolling:false,cookie:config.cookie}))
   app.use('/api/products',productsRouter)

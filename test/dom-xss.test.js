@@ -144,3 +144,11 @@ test('greeting and genre options already keep untrusted API text literal', async
   assert.equal(option.textContent, html)
   assert.equal(option.value, html)
 })
+
+for (const name of [undefined, false, null, '', 'Ada', 0, NaN]) {
+  test(`greeting preserves the existing fallback for ${String(name)}`, t => {
+    const document = domFixture(t)
+    renderGreeting(name)
+    assert.equal(document.getElementById('greeting').textContent, `Welcome, ${name ? name : 'Guest'}!`)
+  })
+}

@@ -200,7 +200,7 @@ test('a successful add retry clears its earlier failure message', async t => {
   assert.match(document.getElementById('catalog-message').textContent, /Unable to load genres/)
 })
 
-test('catalog bootstrap cannot overwrite a search made during initial loading', async t => {
+test('catalog bootstrap cannot overwrite a search made during initial loading', { timeout: 5000 }, async t => {
   const { document } = setup(t)
   document.getElementById('search-input').value = ''
   const form = document.createElement('form')
@@ -334,4 +334,24 @@ test('catalogue startup failure reports the problem after registering search lis
   await setImmediate()
   assert.equal(typeof document.getElementById('search-input').listeners.input, 'function')
   assert.match(document.getElementById('catalog-message').textContent, /Unable to initialize the catalogue/i)
+})
+
+test('cart module finishes evaluation and accepts removal while initial loading is pending', { timeout: 5000 }, async t => {
+  const { document } = setup(t)
+  const initial = deferred()
+  let loads = 0
+  let deletes = 0
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (options?.method === 'DELETE') { deletes++; return response(null, 204) }
+    if (url === '/api/auth/me') return response({ isLoggedIn: false })
+    if (url === '/api/cart/') return ++loads === 1 ? initial.promise : response({ items: [] })
+    throw new Error(`Unexpected URL ${url}`)
+  })
+  await import('../public/js/cart.js?test=nonblocking-startup')
+  const click = { target: { matches: () => true, dataset: { id: '1' } } }
+  await document.getElementById('cart-list').listeners.click(click)
+  assert.equal(deletes, 1)
+  initial.resolve(response({ items: [] }))
+  await setImmediate()
+  assert.equal(document.getElementById('greeting').textContent, 'Welcome, Guest!')
 })
