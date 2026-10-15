@@ -48,7 +48,7 @@ Environment variables override the optional `.env`; environment-only operation i
 | SESSION_PROXY_MODE | direct in development/test by default; production requires verified-proxy |
 | TRUSTED_PROXY_CIDRS | Explicit immediate peer allowlist in verified-proxy mode; IPv4 /24–/32, IPv6 /64–/128 only |
 
-The narrow CIDR prefix policy is deliberate: default routes, named/broad private networks and large explicit ranges fail startup. IPv4-mapped IPv6 peers are normalized by proxy-addr. A permitted range still requires deployment evidence; the prefix restriction alone does not prove that every member is trustworthy. Cookie-name/Secure/HttpOnly/SameSite/Domain and rolling override variables are unsupported and rejected, not security escape hatches.
+The narrow CIDR prefix policy is deliberate: default routes, named/broad private networks and large explicit ranges fail startup. IPv4-mapped IPv6 peers are normalized by proxy-addr; mapped IPv6 CIDRs are rejected and must be written as ordinary IPv4 CIDRs. A permitted range still requires deployment evidence; the prefix restriction alone does not prove that every member is trustworthy. Cookie-name/Secure/HttpOnly/SameSite/Domain and rolling override variables are unsupported and rejected, not security escape hatches.
 
 ## Cookie and lifetime policy
 
@@ -104,7 +104,7 @@ Local verification results and implementation deviations are recorded in the exe
 
 ## Execution record (2026-10-15)
 
-Base: verified origin/main cdd27340030fc771be9429a8c3b23003b5185f25 (PR #7), isolated branch feat/secure-persistent-sessions. Fresh baseline:88/88 passed. Local macOS Node v24.21.0 / PostgreSQL17 / real Chromium:114/114 passed, zero failures/cancellations/skips; npm audit reports zero vulnerabilities. A final independent review and any resulting fixes are recorded separately before owner handoff. No Linux Actions, macOS Actions, SonarCloud or Azure run has been claimed from these local results.
+Base: verified origin/main cdd27340030fc771be9429a8c3b23003b5185f25 (PR #7), isolated branch feat/secure-persistent-sessions. Fresh baseline:88/88 passed. Local macOS Node v24.21.0 / PostgreSQL17.11 / real Chromium:118/118 passed, zero failures/cancellations/skips; npm audit reports zero vulnerabilities. The independent review, reproduced findings, corrections and final verification are recorded in [secure-sessions-review.md](secure-sessions-review.md). No Linux Actions, macOS Actions, SonarCloud or Azure run has been claimed from these local results.
 
 Implementation deviations/rulings:
 
@@ -118,3 +118,5 @@ Implementation deviations/rulings:
 - Additional focused failure/lifecycle test files keep commit-then-error and real signal/deadline tests separate from ordinary authentication flows. The original baseline's88 behavioral cases remain covered.
 
 Remaining deployment limits: Azure peer/header-topology evidence, runtime/migration credential separation, connection-budget/load assessment and operational backup/retention configuration. No Azure resources, push, PR, merge or auto-merge action was performed.
+
+The final review added request-object acknowledgements to prevent express-session response completion from persisting an already acknowledged unchanged identity a second time. They never cache authentication reads. Final tests also drain a real in-flight prune and use a non-UTC native PostgreSQL default; application connections still enforce UTC.

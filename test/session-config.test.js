@@ -30,3 +30,12 @@ test('invalid keys and unsafe production inputs fail without echoing values', ()
 test('broad explicit networks cannot impersonate a narrowly trusted proxy',()=>{
  for(const range of ['0.0.0.0/1','128.0.0.0/1','::/1','8000::/1','10.0.0.0/9']) assert.throws(()=>sessionConfig({...production(),TRUSTED_PROXY_CIDRS:range}))
 })
+test('mapped IPv6 configuration cannot hide a broad IPv4 network',()=>{
+ for(const range of ['::ffff:0.0.0.0/96','::ffff:0.0.0.0/97','::ffff:10.0.0.0/104','0:0:0:0:0:ffff:0000:0000/96','::ffff:0000:0000/96']) assert.throws(()=>sessionConfig({...production(),TRUSTED_PROXY_CIDRS:range}))
+ const native=sessionConfig({...production(),TRUSTED_PROXY_CIDRS:'::/64'})
+ assert.equal(native.trustPeer('192.0.2.1'),false)
+ assert.equal(native.trustPeer('::ffff:192.0.2.1'),false)
+ const config=sessionConfig({...production(),TRUSTED_PROXY_CIDRS:'192.0.2.1/32'})
+ assert.equal(config.trustPeer('::ffff:192.0.2.1'),true)
+ assert.equal(config.trustPeer('::ffff:192.0.2.2'),false)
+})

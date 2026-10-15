@@ -1,4 +1,4 @@
-import { isIP } from 'node:net'
+import { isIP, SocketAddress } from 'node:net'
 import proxyaddr from 'proxy-addr'
 import { databaseSchema } from '../db/config.js'
 const fail = () => { throw new Error('Invalid session configuration') }
@@ -31,6 +31,12 @@ export function sessionConfig(env = process.env) {
     if (ranges.some(value => {
       const [address, prefix, extra] = value.split('/')
       const version = isIP(address)
+      if (version === 6) {
+        const canonical = new SocketAddress({ address, family: 'ipv6' }).address
+        // Configure mapped peers through ordinary IPv4 CIDRs so a /96
+        // cannot masquerade as a narrow IPv6 range while spanning IPv4 /0.
+        if (canonical.startsWith('::ffff:')) return true
+      }
       return !version || extra !== undefined || !/^\d+$/.test(prefix ?? '') || Number(prefix) < (version === 4 ? 24 : 64) || Number(prefix) > (version === 4 ? 32 : 128)
     })) fail()
     let compiled

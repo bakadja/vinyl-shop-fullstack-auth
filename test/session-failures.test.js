@@ -50,3 +50,30 @@ test('store read outage fails closed, GET logout does not query store, and recov
  assert.deepEqual((await request('/api/auth/me')).body,{isLoggedIn:false})
  assert.equal((await request('/api/cart')).status,401)
 })
+test('successful authentication commits exactly once despite middleware response-end save',async t=>{
+ let server,owner
+ const prior={}
+ t.after(async()=>{if(server)await new Promise(resolve=>server.close(resolve));if(owner)await owner.close();await closeDatabase();for(const [k,v]of Object.entries(prior)){if(v===undefined)delete process.env[k];else process.env[k]=v}})
+ const f=await postgresFixture(t);await initializeDatabase(f.database);await initializeSessions(f.database)
+ for(const [k,v]of Object.entries(f.childEnv)){prior[k]=process.env[k];process.env[k]=v}
+ const config=sessionConfig({...f.childEnv,SPIRAL_SESSION_SECRET:randomBytes(32).toString('hex')})
+ owner=createSessionStore({pool:getDatabase().getPool(),config})
+ const query=pg.Pool.prototype.query
+ let writes=0
+ t.mock.method(pg.Pool.prototype,'query',async function(...args){
+   if(String(args[0]).startsWith('INSERT INTO "'+f.schema+'"."user_sessions"')){
+    writes++
+    if(writes>1) throw new Error('second-persistence-operation-forbidden')
+   }
+   return query.apply(this,args)
+ })
+ const app=express();app.locals.sessionConfig=config;app.use(express.json());app.use(session({store:owner.store,secret:config.secrets,resave:false,saveUninitialized:false,cookie:config.cookie}));app.post('/register',registerUser)
+ let lateErrors=0
+ app.use((error,req,res,next)=>{lateErrors++;if(!res.headersSent)res.status(500).end()})
+ server=app.listen(0,'127.0.0.1');await once(server,'listening')
+ const response=await fetch(`http://127.0.0.1:${server.address().port}/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(account('one-save'))})
+ assert.equal(response.status,201);assert.deepEqual(await response.json(),{message:'User registered'})
+ await new Promise(resolve=>setImmediate(resolve))
+ assert.equal(writes,1);assert.equal(lateErrors,0)
+ assert.equal((await f.database.query('SELECT count(*) FROM user_sessions')).rows[0].count,'1')
+})

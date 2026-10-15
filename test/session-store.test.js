@@ -59,3 +59,46 @@ test('prune failures use sanitized diagnostics and do not disable later store re
  await call(owner.store,'set','recovered',{cookie:{expires:new Date(Date.now()+10000)}})
  assert.ok(await call(owner.store,'get','recovered'))
 })
+test('store close drains a real in-flight prune and cancels future pruning',async t=>{
+ let owner,release,transaction
+ t.after(async()=>{if(release)release();if(transaction)await transaction;if(owner)await owner.close()})
+ const f=await postgresFixture(t);await initializeSessions(f.database)
+ owner=createSessionStore({pool:f.database.getPool(),config:sessionConfig({DATABASE_SCHEMA:f.schema,SPIRAL_SESSION_SECRET:randomBytes(32).toString('hex')})})
+ let locked;const ready=new Promise(resolve=>{locked=resolve}),gate=new Promise(resolve=>{release=resolve})
+ transaction=f.database.transaction(async client=>{await client.query('LOCK TABLE user_sessions IN ACCESS EXCLUSIVE MODE');locked();await gate})
+ await ready
+ const pruning=call(owner.store,'pruneSessions')
+ let waiting=false
+ for(let i=0;i<100;i++){
+  waiting=(await f.database.query("SELECT 1 FROM pg_stat_activity WHERE query LIKE 'DELETE FROM %user_sessions%' AND wait_event_type='Lock'")).rows.length>0
+  if(waiting)break
+  await new Promise(resolve=>setTimeout(resolve,10))
+ }
+ assert.equal(waiting,true)
+ let closed=false;const closing=owner.close().then(()=>{closed=true})
+ await new Promise(resolve=>setImmediate(resolve));assert.equal(closed,false)
+ release();await transaction;await pruning;await closing
+ assert.equal(owner.store.closed,true)
+ assert.equal(owner.store.pruneTimer,undefined)
+ assert.equal((await f.database.query('SELECT 1 AS n')).rows[0].n,1)
+})
+test('UTC application connections preserve absolute expiry under non-UTC observers/defaults',async t=>{
+ let owner,appDatabase
+ t.after(async()=>{if(owner)await owner.close();if(appDatabase)await appDatabase.close()})
+ const f=await postgresFixture(t);await initializeSessions(f.database)
+ await f.database.query("SET timezone='Pacific/Auckland'")
+ const {createDatabase}=await import('../db/db.js'),{databaseConfig}=await import('../db/config.js')
+ appDatabase=createDatabase(databaseConfig(f.childEnv))
+ assert.equal((await appDatabase.query('SHOW timezone')).rows[0].TimeZone,'UTC')
+ owner=createSessionStore({pool:appDatabase.getPool(),config:sessionConfig({...f.childEnv,SPIRAL_SESSION_SECRET:randomBytes(32).toString('hex')})})
+ const authenticatedAt=Date.now()
+ const value={cookie:{expires:new Date(authenticatedAt+28800000)},userId:1,authenticatedAt}
+ await call(owner.store,'set','utc-session',value)
+ const delta=Number((await f.database.query("SELECT EXTRACT(EPOCH FROM expire AT TIME ZONE 'UTC')*1000-$1::numeric AS delta FROM user_sessions WHERE sid='utc-session'",[authenticatedAt])).rows[0].delta)
+ assert.ok(delta>=28800000&&delta<28801000)
+ value.userId=2
+ await call(owner.store,'set','utc-session',value)
+ assert.equal((await call(owner.store,'get','utc-session')).userId,2)
+ await f.database.query("UPDATE user_sessions SET expire=(now() AT TIME ZONE 'UTC')-interval '1 minute'")
+ assert.equal(await call(owner.store,'get','utc-session'),undefined)
+})
