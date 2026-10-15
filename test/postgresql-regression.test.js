@@ -193,3 +193,57 @@ test('npm start accepts environment-only configuration and serves PostgreSQL cat
   })
   assert.equal((await (await fetch(`${baseUrl}/api/products`)).json()).length, 10)
 })
+
+test('initialization serializes sequence alignment with ordinary generated-ID product writers', async t => {
+  const { database } = await postgresFixture(t)
+  await initializeDatabase(database)
+  let release
+  let ready
+  const gate = new Promise(resolve => { release = resolve })
+  const writerReady = new Promise(resolve => { ready = resolve })
+  const writer = database.transaction(async client => {
+    await client.query("INSERT INTO products(title,artist,price,image) VALUES ('Synthetic','Synthetic',1,'synthetic.png')")
+    ready()
+    await gate
+  })
+  await writerReady
+  const initializing = initializeDatabase(database)
+  initializing.catch(() => {})
+  try {
+    let waiting = false
+    for (let attempt = 0; attempt < 100; attempt++) {
+      waiting = (await database.query("SELECT 1 FROM pg_stat_activity WHERE wait_event_type = 'Lock'")).rows.length > 0
+      if (waiting) break
+      await new Promise(resolve => setTimeout(resolve, 10))
+    }
+    assert.ok(waiting, 'Alignment must wait until the active product writer commits')
+  } finally { release(); await writer; await initializing }
+  assert.equal((await database.query("INSERT INTO products(title,artist,price,image) VALUES ('Synthetic','Synthetic',1,'synthetic.png') RETURNING id")).rows[0].id, 12)
+})
+
+test('initialization does not rewind standalone sequence allocations', async t => {
+  const { database } = await postgresFixture(t)
+  await initializeDatabase(database)
+  let release
+  let ready
+  const gate = new Promise(resolve => { release = resolve })
+  const allocated = new Promise(resolve => { ready = resolve })
+  const allocator = database.transaction(async client => {
+    assert.equal((await client.query("SELECT nextval(pg_get_serial_sequence('products', 'id')) AS id")).rows[0].id, '11')
+    ready()
+    await gate
+  })
+  await allocated
+  const initialization = initializeDatabase(database)
+  initialization.catch(() => {})
+  try {
+    let waiting = false
+    for (let attempt = 0; attempt < 100; attempt++) {
+      waiting = (await database.query("SELECT 1 FROM pg_stat_activity WHERE wait_event_type = 'Lock'")).rows.length > 0
+      if (waiting) break
+      await new Promise(resolve => setTimeout(resolve, 10))
+    }
+    assert.ok(waiting, 'Alignment must wait for a sequence allocator transaction')
+  } finally { release(); await allocator; await initialization }
+  assert.equal((await database.query("SELECT nextval(pg_get_serial_sequence('products', 'id')) AS id")).rows[0].id, '12')
+})

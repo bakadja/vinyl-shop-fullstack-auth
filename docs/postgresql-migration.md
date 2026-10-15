@@ -36,7 +36,8 @@ Initialization takes a schema-specific transaction advisory lock, creates missin
 tables, validates types/nullability/defaults and required constraints, then inserts
 only missing seed IDs with ON CONFLICT DO NOTHING. Existing user, hash, cart and
 edited catalogue rows survive repeat initialization. The product sequence is
-aligned without moving backwards. Incompatible schemas fail and roll back rather
+aligned while holding a product-writer lock and a sequence DDL lock (reapplying
+its unchanged cache setting), preventing concurrent allocations from being rewound. Incompatible schemas fail and roll back rather
 than being silently accepted. This is initialization, not a general migration
 framework for arbitrary pre-existing PostgreSQL schemas.
 
@@ -155,9 +156,14 @@ never use it to relabel a development/production database.
 
 Each fixture creates one UUID schema and records its OID/owner. Every pool/HTTP
 subprocess receives an explicit single-schema search path with no public fallback.
-Children stop before teardown. Cleanup rechecks server identity and recorded
-namespace identity, refuses renamed/recreated/unregistered schemas, and never
-executes DROP DATABASE or an application-wide reset. Privileges protect public
+Children stop before teardown. Cleanup rechecks server identity, then calls a
+bootstrap-admin-owned helper with a pinned search_path and restricted EXECUTE.
+The helper locks the disposable database's pg_namespace catalog before checking
+recorded name/OID/owner and dropping the schema, preventing rename/recreation
+between verification and deletion. It accepts only the restricted test session
+and exact fixture-name pattern; it cannot target public/control or a forged
+identity. No general administrator credentials or catalog-locking rights are
+granted to tests. Cleanup never executes DROP DATABASE or an application-wide reset. Privileges protect public
 and marker objects. Missing/unsafe configuration is a failure, never a skip.
 
 ## Tests and CI
@@ -190,15 +196,15 @@ Node 24, read-only workflow permissions, persist-credentials=false, locked
 installation and npm audit --audit-level=high. Neither skips PostgreSQL tests.
 External `SonarCloud Code Analysis` remains mandatory and unchanged.
 
-## Validation record (2026-10-14)
+## Validation record (2026-10-14–15)
 
 | Check | Observed result |
 | --- | --- |
 | Verified branch baseline | main `3abc506`, merged PR #6; original 57 tests pass |
 | npm ci | Pass after SQLite removal; no native dependency build |
 | npm audit --audit-level=high | 0 vulnerabilities |
-| Native PostgreSQL 17.11 / macOS arm64 | 78 tests pass, 0 fail/skip |
-| PostgreSQL 17 / Colima Docker Compose | Development/test services healthy; 78 tests pass, 0 fail/skip |
+| Native PostgreSQL 17.11 / macOS arm64 | 83 tests pass, 0 fail/skip |
+| PostgreSQL 17 / Colima Docker Compose | Development/test services healthy; 83 tests pass, 0 fail/skip |
 | Compose development HTTP/CLI smoke | Repeated init, static page, registration/login/logout, 20 concurrent cart additions, numeric contracts, delete/clear and debug CLI pass |
 | Unsafe-count regression sensitivity | Replacing safe conversion with Number caused the expected failure; restored |
 | Remote Linux/macOS checks and Sonar gate | Exact-head results recorded in the draft PR after publication; not inferred from local tests |
@@ -223,6 +229,11 @@ minimal DOM double, not a full browser or layout/stock/checkout test.
 - Used standalone Homebrew docker-compose during verification without modifying
   Docker plugin configuration. CI bootstrap credentials are run-specific values;
   restricted test credentials are generated, not hardcoded.
+- Independent review found encoded application-target comparison, a namespace
+  replacement race and a sequence-alignment race. Added canonical target
+  comparison, locked server-side test cleanup and serialized sequence alignment,
+  with real interleaving/allocator regressions. The original cleanup and missing
+  sequence lock were each proven unsafe by regression mutation runs.
 - Optional .env loading is explicit and tests never source it. No API/session/UI
   redesign or automatic personal-data migration was introduced.
 

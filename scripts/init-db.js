@@ -50,6 +50,14 @@ export async function initializeDatabase(database) {
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended(current_database() || ':' || current_schema(), 0))")
     await client.query(sql.slice(0, separator))
     await validateSchema(client)
+    // Block ordinary inserts before reading/aligning the identity sequence.
+    await client.query('LOCK TABLE products IN SHARE ROW EXCLUSIVE MODE')
+    // Reapply the existing cache value to obtain the sequence DDL lock as well,
+    // serializing standalone nextval calls without changing sequence settings.
+    const sequenceLock = (await client.query(`SELECT format('ALTER SEQUENCE %s CACHE %s', seqrelid::regclass, seqcache) AS command
+      FROM pg_sequence WHERE seqrelid = pg_get_serial_sequence('products', 'id')::regclass`)).rows[0].command
+    // PostgreSQL formats/quotes the catalog identifier; no user input forms this DDL.
+    await client.query(sequenceLock)
     await client.query(sql.slice(separator))
     await client.query(`SELECT setval(pg_get_serial_sequence('products', 'id'),
       GREATEST((SELECT MAX(id) FROM products), COALESCE(pg_sequence_last_value(pg_get_serial_sequence('products', 'id')::regclass), 1)), true)`)

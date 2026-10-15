@@ -15,9 +15,9 @@ export function testTarget(env = process.env) {
   if (env.DATABASE_URL) {
     let app
     try { app = new URL(env.DATABASE_URL) } catch { throw new Error('Cannot verify application/test database separation') }
-    if (['127.0.0.1', '[::1]', 'localhost'].includes(app.hostname) && (app.port || '5432') === url.port && app.pathname === url.pathname) throw new Error('Test database matches application target')
+    if (['127.0.0.1', '[::1]', 'localhost'].includes(app.hostname) && Number(app.port || '5432') === Number(url.port) && decodeURIComponent(app.pathname.slice(1)) === 'vinyl_shop_test') throw new Error('Test database matches application target')
   }
-  if (['localhost', host].includes(env.PGHOST) && String(env.PGPORT ?? '5432') === url.port && env.PGDATABASE === 'vinyl_shop_test') throw new Error('Test database matches application target')
+  if (['localhost', '127.0.0.1', '::1'].includes(env.PGHOST) && Number(env.PGPORT ?? '5432') === Number(url.port) && env.PGDATABASE === 'vinyl_shop_test') throw new Error('Test database matches application target')
   let password
   try { password = decodeURIComponent(url.password) } catch { throw new Error('Invalid test credentials') }
   return { host, port: Number(url.port), database: 'vinyl_shop_test', user: 'vinyl_shop_test', password,
@@ -59,11 +59,7 @@ export async function postgresFixture(t, env = process.env) {
       if (database) await database.close()
       if (identity) {
         await verifyTestServer(guard)
-        await guard.transaction(async client => {
-          const { rows } = await client.query('SELECT oid, nspowner FROM pg_namespace WHERE nspname = $1', [schema])
-          if (rows.length !== 1 || rows[0].oid !== identity.oid || rows[0].nspowner !== identity.nspowner) throw new Error('Test schema identity changed; cleanup refused')
-          await client.query(`DROP SCHEMA "${schema}" CASCADE`)
-        })
+        await guard.query('SELECT vinyl_test_control.drop_test_schema($1, $2, $3)', [schema, identity.oid, identity.nspowner])
       }
     } finally {
       await guard.close()
