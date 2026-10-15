@@ -40,7 +40,7 @@ async function configureDisposableTls() {
   const container = process.env.POSTGRES_SERVICE_ID
   if (process.env.GITHUB_ACTIONS !== 'true' || !/^[a-f0-9]{12,64}$/.test(container ?? '') || !process.env.GITHUB_ENV || !process.env.TEST_DATABASE_URL) throw new Error('Disposable CI service configuration required')
   const target = testTarget({ TEST_DATABASE_URL: process.env.TEST_DATABASE_URL })
-  if (target.port !== 5432) throw new Error('Unexpected disposable service port')
+  if (target.host !== '127.0.0.1' || target.port !== 5432) throw new Error('Unexpected disposable service port')
   await verifyService(container, target)
   const certificates = await createTestCertificates()
   try {

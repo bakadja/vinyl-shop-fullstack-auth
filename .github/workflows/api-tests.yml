@@ -54,7 +54,9 @@ jobs:
         env:
           POSTGRES_SERVICE_ID: ${{ job.services.postgres.id }}
           PGPASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}
-        run: node scripts/configure-ci-test-tls.js
+        run: |
+          node scripts/check-ci-certificate-guards.js
+          node scripts/configure-ci-test-tls.js
       - name: Run database and HTTP integration tests
         run: npm test
 
