@@ -1,7 +1,7 @@
 import { closeDatabase, getDatabase } from './db/db.js'
 import express from 'express'
 import { productsRouter } from './routes/products.js'
-import { authRouter } from './routes/auth.js'
+import { authRouter, logoutMethodGuard } from './routes/auth.js'
 import { meRouter } from './routes/me.js'
 import { cartRouter } from './routes/cart.js'
 import session from 'express-session'
@@ -42,6 +42,7 @@ try {
   app.set('trust proxy',config.trustPeer)
   app.use(productionTransport(config))
   app.use('/api/auth',(req,res,next)=>{res.set('Cache-Control','no-store');next()})
+  app.use('/api/auth/logout',logoutMethodGuard)
   app.use(express.json())
   app.use(session({store:owner.store,secret:config.secrets,name:config.cookieName,resave:false,saveUninitialized:false,rolling:false,cookie:config.cookie}))
   app.use(express.static('public'))

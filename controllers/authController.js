@@ -1,3 +1,4 @@
+import { invalidateSession } from '../sessions/policy.js'
 import { establishSession } from '../sessions/authentication.js'
 import validator from 'validator'
 import { getDatabase } from '../db/db.js'
@@ -96,12 +97,11 @@ export async function loginUser(req, res) {
 
 
 export async function logoutUser(req, res) {
-
-  req.session.destroy( (err) => {
-    if (err) return res.status(500).json({ error: 'Logout failed. Please try again.' })
-
+  try {
+    await invalidateSession(req, res, req.app.locals.sessionConfig)
     res.json({ message: 'Logged out' })
-
-  })
-
+  } catch {
+    console.error('Logout session destruction failed')
+    res.status(500).json({ error: 'Logout failed. Please try again.' })
+  }
 }

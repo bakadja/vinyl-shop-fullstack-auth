@@ -70,8 +70,8 @@ apiTest('login rejects missing and incorrect credentials without creating a sess
 apiTest('logout invalidates the old session cookie', async ({ client }) => {
   const request = client()
   await register(request)
-  assert.equal((await request('/api/auth/logout')).status, 200)
-  // The client retains the original cookie: the server must invalidate it.
+  assert.equal((await request('/api/auth/logout', { method: 'POST', body: {} })).status, 200)
+  // Server-side raw-cookie replay is additionally covered by session-logout.test.js.
   assert.deepEqual((await request('/api/auth/me')).body, { isLoggedIn: false })
   assert.equal((await request('/api/cart')).status, 401)
 })
@@ -190,7 +190,7 @@ apiTest('cart survives logout and login for the same user', async ({ client }) =
   const user = await register(request)
   await request('/api/cart/add', { method: 'POST', body: { productId: 2 } })
   const before = (await request('/api/cart')).body
-  await request('/api/auth/logout')
+  await request('/api/auth/logout', { method: 'POST', body: {} })
   assert.equal((await request('/api/cart')).status, 401)
   const fresh = client()
   assert.equal((await fresh('/api/auth/login', { method: 'POST', body: user })).status, 200)
