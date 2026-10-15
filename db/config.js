@@ -42,8 +42,7 @@ function validateConnection({ host, port, database, user, password, mode }, env)
   }
 }
 
-function tlsConfiguration({ mode }, env) {
-  if (mode === 'disable') return false
+function verifiedTLSConfiguration(env) {
   const ssl = { rejectUnauthorized: true }
   if (env.PGSSLROOTCERT) {
     try { ssl.ca = readFileSync(env.PGSSLROOTCERT, 'utf8') } catch { throw new Error('Unable to load PostgreSQL CA certificate') }
@@ -56,7 +55,7 @@ export function databaseConfig(env = process.env) {
   validateConnection(settings, env)
   const schema = env.DATABASE_SCHEMA ?? 'public'
   if (!/^[a-z][a-z0-9_]{0,62}$/.test(schema)) throw new Error('Invalid PostgreSQL schema')
-  const ssl = tlsConfiguration(settings, env)
+  const ssl = settings.mode === 'disable' ? false : verifiedTLSConfiguration(env)
   const { host, port, database, user, password } = settings
   return { host, port: Number(port), database, user, password, ssl, max: 5,
     connectionTimeoutMillis: 5000, idleTimeoutMillis: 10000,
