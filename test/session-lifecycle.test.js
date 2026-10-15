@@ -17,7 +17,8 @@ test('production startup fails before readiness for wrong CA or missing session 
  await assert.rejects(startSessionProcess({after:h=>hooks.push(h)},{childEnv:f.childEnv,cwd:f.directory}),/startup failed/)
  assert.equal((await f.database.query("SELECT to_regclass('user_sessions') AS name")).rows[0].name,null)
  await initializeSessions(f.database)
- const wrong=await createTestCertificates(f.directory+'/wrong-ca')
+ const wrong=await createTestCertificates()
+ hooks.push(wrong.cleanup)
  await assert.rejects(startSessionProcess({after:h=>hooks.push(h)},{childEnv:f.childEnv,cwd:f.directory,overrides:{NODE_ENV:'production',PGSSLMODE:'verify-full',PGSSLROOTCERT:wrong.caFile,PUBLIC_ORIGIN:'https://shop.example',SESSION_PROXY_MODE:'verified-proxy',TRUSTED_PROXY_CIDRS:'127.0.0.1/32'}}),/startup failed/)
 })
 test('repeated shutdown signals honor the ten-second deadline with a blocked real DB request',{timeout:25000},async t=>{

@@ -12,7 +12,7 @@ export async function invalidateSession(req,res,config) {
 export function sessionValidity(config,{now=Date.now}={}) {
   return async(req,res,next)=>{
     const value=req.session
-    if(!value || value.userId===undefined) return next()
+    if(value?.userId===undefined) return next()
     const time=now()
     if(Number.isSafeInteger(value.userId) && value.userId>0 && Number.isSafeInteger(value.authenticatedAt) && value.authenticatedAt<=time && time-value.authenticatedAt<config.lifetimeMs) return next()
     try {await invalidateSession(req,res,config);next()} catch(error){next(error)}

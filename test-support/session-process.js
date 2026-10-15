@@ -28,7 +28,7 @@ export async function startSessionProcess(t, { childEnv, cwd, secret = randomByt
     child.once('exit', () => { clearTimeout(timer); reject(new Error(`Server startup failed: ${logs}`)) })
     child.stderr.on('data', chunk => { logs = (logs + chunk).slice(-4000) })
     child.stdout.on('data', chunk => {
-      const match = String(chunk).match(/localhost:(\d+)/)
+      const match = /localhost:(\d+)/.exec(String(chunk))
       if (match) { clearTimeout(timer); resolve(`http://127.0.0.1:${match[1]}`) }
     })
   })

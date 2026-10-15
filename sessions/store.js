@@ -43,7 +43,7 @@ export function createSessionStore({ pool, config }) {
     closing ??= (async () => {
       await store.close()
       closed = true
-      await Promise.allSettled([...queries])
+      await Promise.allSettled(queries)
     })()
     return closing
   } }

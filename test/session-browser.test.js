@@ -12,7 +12,8 @@ test('Chromium enforces production cookies and POST logout with actual frontend 
  const hooks=[];t.after(async()=>{for(const hook of hooks.reverse())await hook()})
  const f=await postgresFixture(t),harness={after:hook=>hooks.push(hook)}
  await initializeDatabase(f.database);await initializeSessions(f.database)
- const certificates=await createTestCertificates(f.directory+'/proxy-tls')
+ const certificates=await createTestCertificates()
+ harness.after(certificates.cleanup)
  let child
  const proxy=await startTlsProxy(harness,{targetUrl:()=>child.baseUrl,certificates})
  const origin=proxy.origin.replace('localhost','vinyl.test')
