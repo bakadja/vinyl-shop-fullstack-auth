@@ -46,6 +46,14 @@ test('public assets bypass broken session storage and suppress Express disclosur
   assert.equal(withoutSessions.headers.get('set-cookie'), null)
   assert.match(await withoutSessions.text(), /--color-accent:/)
 
+  const favicon = await fetch(baseUrl + '/favicon.ico', options)
+  assert.equal(favicon.status, 200)
+  assert.match(favicon.headers.get('content-type'), /^image\/png(?:;|$)/)
+  assert.equal(favicon.headers.get('set-cookie'), null)
+  assert.equal(favicon.headers.get('x-powered-by'), null)
+  const bytes = new Uint8Array(await favicon.arrayBuffer())
+  assert.deepEqual([...bytes.slice(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10])
+
   const home = await fetch(baseUrl + '/', options)
   assert.equal(home.status, 200)
   assert.match(await home.text(), /<div id="cart-banner" class="cart-banner-link"><\/div>/)

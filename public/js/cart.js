@@ -31,15 +31,17 @@ dom.checkoutBtn.addEventListener('click', async () => {
 })
 
 async function init() {
-  await loadCart(dom)
-  const name = await checkAuth()
-  renderGreeting(name)
-  showHideMenuItems(name)
-} 
- 
+  try {
+    await loadCart(dom)
+    const name = await checkAuth()
+    renderGreeting(name)
+    showHideMenuItems(name)
+  } catch (error) {
+    console.error('Cart initialization failed:', error)
+    dom.userMessage.textContent = 'Unable to load cart data.'
+    dom.checkoutBtn.disabled = true
+  }
+}
+
 // Let cart actions remain responsive even while the first fetch is pending.
-void init().catch(error => {
-  console.error('Cart initialization failed:', error)
-  dom.userMessage.textContent = 'Unable to load cart data.'
-  dom.checkoutBtn.disabled = true
-})
+void init()

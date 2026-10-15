@@ -23,6 +23,18 @@ test('Chromium enforces production cookies and POST logout with actual frontend 
  const context=await browser.newContext({ignoreHTTPSErrors:true})
  const page=await context.newPage()
  await page.goto(origin)
+ const favicon = await page.evaluate(async () => {
+   const response = await fetch('/favicon.ico')
+   const image = new Image()
+   image.src = '/favicon.ico'
+   await image.decode()
+   return { status: response.status, type: response.headers.get('content-type'), cookie: response.headers.get('set-cookie'), poweredBy: response.headers.get('x-powered-by'), width: image.naturalWidth }
+ })
+ assert.equal(favicon.status,200)
+ assert.match(favicon.type,/^image\/png(?:;|$)/)
+ assert.equal(favicon.cookie,null)
+ assert.equal(favicon.poweredBy,null)
+ assert.ok(favicon.width>0)
  const registered=await page.evaluate(async user=>{const r=await fetch('/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(user)});return r.status},account('browser'))
  assert.equal(registered,201)
  const cookie=(await context.cookies()).find(c=>c.name==='__Host-vinyl.sid')
@@ -44,6 +56,9 @@ test('Chromium enforces production cookies and POST logout with actual frontend 
  const httpPage=await context.newPage()
  const httpOrigin=`http://vinyl.test:${new URL(child.baseUrl).port}`
  const observed=httpPage.waitForRequest(httpOrigin+'/api/auth/me')
+ const blockedFavicon=await child.request('/favicon.ico')
+ assert.equal(blockedFavicon.status,400)
+ assert.deepEqual(blockedFavicon.body,{error:'HTTPS required'})
  const blockedAsset=await child.request('/css/index.css')
  assert.equal(blockedAsset.status,400)
  assert.deepEqual(blockedAsset.body,{error:'HTTPS required'})

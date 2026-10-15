@@ -22,9 +22,8 @@ export async function checkAuth() {
 
 // ===== Greet user or guest =====
 
-export function renderGreeting(name) {
-  const user = name || 'Guest'
-  document.getElementById('greeting').textContent = `Welcome, ${user}!`
+export function renderGreeting(name = 'Guest') {
+  document.getElementById('greeting').textContent = `Welcome, ${name ? name : 'Guest'}!`
 }
 
 // ===== Only display logout button if logged in, else display log in/sign in options =====

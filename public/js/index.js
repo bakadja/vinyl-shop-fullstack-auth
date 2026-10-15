@@ -9,12 +9,17 @@ document.getElementById('logout-btn').addEventListener('click', logout)
 // ===== Initial Load =====
 
 async function init() {
-  await Promise.all([populateGenreSelect(), applySearchFilter()])
-  const name = await checkAuth()
-  renderGreeting(name)
-  showHideMenuItems(name)
-  if (name) {
-    await updateCartIcon()
+  try {
+    await Promise.all([populateGenreSelect(), applySearchFilter()])
+    const name = await checkAuth()
+    renderGreeting(name)
+    showHideMenuItems(name)
+    if (name) {
+      await updateCartIcon()
+    }
+  } catch (error) {
+    console.error('Catalogue initialization failed:', error)
+    document.getElementById('catalog-message').textContent = 'Unable to initialize the catalogue. Please try again.'
   }
 }
 
@@ -38,7 +43,4 @@ document.querySelector('form').addEventListener('submit', handleSearch)
 document.getElementById('genre-select').addEventListener('change', handleSearch)
 
 // Do not block module evaluation: users may search while the initial request is pending.
-void init().catch(error => {
-  console.error('Catalogue initialization failed:', error)
-  document.getElementById('catalog-message').textContent = 'Unable to initialize the catalogue. Please try again.'
-})
+void init()
