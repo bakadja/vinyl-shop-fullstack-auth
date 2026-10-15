@@ -1,0 +1,29 @@
+{
+  "deploymentEnabled": false,
+  "gates": {
+    "proxy": {
+      "status": "blocked",
+      "evidence": []
+    },
+    "abuseProtection": {
+      "status": "blocked",
+      "evidence": []
+    },
+    "subscriptionQuotas": {
+      "status": "blocked",
+      "evidence": []
+    },
+    "costApproval": {
+      "status": "blocked",
+      "evidence": []
+    },
+    "bootstrap": {
+      "status": "blocked",
+      "evidence": []
+    },
+    "restoreDrill": {
+      "status": "blocked",
+      "evidence": []
+    }
+  }
+}

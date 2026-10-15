@@ -1,0 +1,52 @@
+name: Azure readiness validation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Download pinned validation tools (no Azure login)
+        run: |
+          curl --proto "=https" --proto-redir "=https" --tlsv1.2 --fail --silent --show-error --location https://github.com/Azure/bicep/releases/download/v0.48.1/bicep-linux-x64 --output "$RUNNER_TEMP/bicep"
+          echo "b09ec25a9d376c1f8e33ede6ed22b587f915ad68488d5db77a6f9541748c7f6e  $RUNNER_TEMP/bicep" | sha256sum --check
+          chmod +x "$RUNNER_TEMP/bicep"
+          curl --proto "=https" --proto-redir "=https" --tlsv1.2 --fail --silent --show-error --location https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz --output "$RUNNER_TEMP/actionlint.tar.gz"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+      - name: Compile Bicep and validate security and cost properties
+        run: |
+          mkdir -p .cache
+          "$RUNNER_TEMP/bicep" build infra/azure/main.bicep --outfile .cache/azure-template.json
+          "$RUNNER_TEMP/bicep" lint infra/azure/main.bicep
+          node scripts/azure/validate.js
+      - name: Validate workflows
+        run: '"$RUNNER_TEMP/actionlint" .github/workflows/azure-validate.yml .github/workflows/azure-deploy.yml'
+      - name: Test deployment guards and artifact boundaries
+        run: node --test test/azure-readiness.test.js test/azure-artifacts.test.js
+      - name: Verify the committed deployment lock remains closed
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict'
+          import { readFileSync } from 'node:fs'
+          import { assertReadiness } from './scripts/azure/guards.js'
+          const manifest = JSON.parse(readFileSync('infra/azure/readiness.json', 'utf8'))
+          assert.equal(manifest.deploymentEnabled, false)
+          assert.throws(() => assertReadiness(manifest), { message: 'Deployment blocked: required security or operational evidence is missing' })
+          JS

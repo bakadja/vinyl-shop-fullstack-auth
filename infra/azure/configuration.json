@@ -1,0 +1,8 @@
+{
+  "prefix": "vinyl",
+  "location": null,
+  "publicOrigin": null,
+  "trustedProxyCidrs": null,
+  "runtimeUser": "vinyl_runtime",
+  "adminUser": "vinyl_migrator"
+}
