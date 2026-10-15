@@ -5,6 +5,7 @@ import { productsRouter } from './routes/products.js'
 import { authRouter, logoutMethodGuard } from './routes/auth.js'
 import { meRouter } from './routes/me.js'
 import { cartRouter } from './routes/cart.js'
+import { healthRouter } from './routes/health.js'
 import session from 'express-session'
 import { sessionConfig } from './sessions/config.js'
 import { validateSessionSchema } from './sessions/schema.js'
@@ -43,6 +44,7 @@ try {
   app.locals.sessionConfig=config
   app.set('trust proxy',config.trustPeer)
   app.use(productionTransport(config))
+  app.use(healthRouter(db))
   app.use('/api/auth',(req,res,next)=>{res.set('Cache-Control','no-store');next()})
   app.use('/api/auth/logout',logoutMethodGuard)
   app.use(express.json())
