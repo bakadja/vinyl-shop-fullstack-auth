@@ -20,7 +20,9 @@ printf '%s\n' "$admin_password" > "$cluster/password"
 # Bind only loopback; choose a currently free port. A race fails startup, never reuses a server.
 port=$(node -e 'const s=require("net").createServer();s.listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})')
 "$pgbin/initdb" -D "$cluster/data" -U vinyl_test_admin --pwfile="$cluster/password" --auth-local=trust --auth-host=scram-sha-256 > "$cluster/init.log" 2>&1
-"$pgbin/pg_ctl" -D "$cluster/data" -l "$cluster/server.log" -o "-h 127.0.0.1 -p $port -k $cluster" -w -t 30 start > "$cluster/start.log" 2>&1
+node "$root/test-support/create-test-certificates.js" "$cluster/tls"
+export TEST_DATABASE_CA_FILE="$cluster/tls/ca.pem"
+"$pgbin/pg_ctl" -D "$cluster/data" -l "$cluster/server.log" -o "-h 127.0.0.1 -p $port -k $cluster -c ssl=on -c ssl_cert_file=$cluster/tls/server.pem -c ssl_key_file=$cluster/tls/server.key" -w -t 30 start > "$cluster/start.log" 2>&1
 for attempt in {1..30}; do
   if "$pgbin/pg_isready" -h 127.0.0.1 -p "$port" -q; then break; fi
   if [[ "$attempt" -eq 30 ]]; then echo 'Disposable PostgreSQL startup failed.' >&2; exit 1; fi

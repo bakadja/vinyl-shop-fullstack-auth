@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { fileURLToPath } from 'node:url'
-import { randomUUID } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
+import { initializeSessions } from '../sessions/schema.js'
 import { initializeDatabase } from '../scripts/init-db.js'
 import { postgresFixture } from './postgresql.js'
 
@@ -19,9 +20,10 @@ export async function fixture(t) {
   })
   const { database, schema, directory, childEnv } = await postgresFixture(t)
   await initializeDatabase(database)
+  await initializeSessions(database)
   child = spawn(process.execPath, [fileURLToPath(new URL('../server.js', import.meta.url))], {
     cwd: directory,
-    env: { ...childEnv, PORT: '0', SPIRAL_SESSION_SECRET: randomUUID() },
+    env: { ...childEnv, PORT: '0', SPIRAL_SESSION_SECRET: randomBytes(32).toString('hex') },
     stdio: ['ignore', 'pipe', 'pipe']
   })
   const baseUrl = await new Promise((resolve, reject) => {

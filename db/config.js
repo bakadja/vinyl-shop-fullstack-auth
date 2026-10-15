@@ -58,7 +58,7 @@ export function databaseConfig(env = process.env) {
   const { host, port, database, user, password } = settings
   return { host, port: Number(port), database, user, password, ssl, max: 5,
     connectionTimeoutMillis: 5000, idleTimeoutMillis: 10000,
-    options: `-c search_path=${schema}`, application_name: 'vinyl-shop' }
+    options: `-c search_path=${schema} -c timezone=UTC`, application_name: 'vinyl-shop' }
 }
 
 export function databaseSchema(env = process.env) {

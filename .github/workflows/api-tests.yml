@@ -48,6 +48,11 @@ jobs:
           echo "::add-mask::$VINYL_TEST_PASSWORD"
           psql -X -h 127.0.0.1 -p 5432 -U postgres -d postgres -f test-support/provision-test-db.sql
           echo "TEST_DATABASE_URL=postgresql://vinyl_shop_test:${VINYL_TEST_PASSWORD}@127.0.0.1:5432/vinyl_shop_test" >> "$GITHUB_ENV"
+      - name: Enable verified TLS on disposable PostgreSQL service
+        env:
+          POSTGRES_SERVICE_ID: ${{ job.services.postgres.id }}
+          PGPASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: node scripts/configure-ci-test-tls.js
       - name: Run database and HTTP integration tests
         run: npm test
 
