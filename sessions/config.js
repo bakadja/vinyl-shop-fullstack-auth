@@ -1,3 +1,4 @@
+import { isIP } from 'node:net'
 import proxyaddr from 'proxy-addr'
 import { databaseSchema } from '../db/config.js'
 const fail = () => { throw new Error('Invalid session configuration') }
@@ -27,7 +28,11 @@ export function sessionConfig(env = process.env) {
   let trustPeer = () => false
   if (proxyMode === 'verified-proxy') {
     const ranges = (env.TRUSTED_PROXY_CIDRS ?? '').split(',').map(value => value.trim())
-    if (ranges.some(value => !value || !value.includes('/') || /\/0$/.test(value) || ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', 'fc00::/7'].includes(value))) fail()
+    if (ranges.some(value => {
+      const [address, prefix, extra] = value.split('/')
+      const version = isIP(address)
+      return !version || extra !== undefined || !/^\d+$/.test(prefix ?? '') || Number(prefix) < (version === 4 ? 24 : 64) || Number(prefix) > (version === 4 ? 32 : 128)
+    })) fail()
     let compiled
     try { compiled = proxyaddr.compile(ranges) } catch { fail() }
     trustPeer = address => { try { return compiled(address) } catch { return false } }

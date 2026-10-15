@@ -1,3 +1,4 @@
+import { testTarget } from '../test-support/postgresql.js'
 // Only configures the disposable GitHub Actions PostgreSQL service, never an app target.
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -7,6 +8,7 @@ import { createTestCertificates } from '../test-support/tls.js'
 import pg from 'pg'
 const run = promisify(execFile)
 if (process.env.GITHUB_ACTIONS !== 'true' || !/^[a-f0-9]{12,64}$/.test(process.env.POSTGRES_SERVICE_ID ?? '') || !process.env.RUNNER_TEMP || !process.env.TEST_DATABASE_URL) throw new Error('Disposable CI service configuration required')
+const target = testTarget({ TEST_DATABASE_URL: process.env.TEST_DATABASE_URL })
 const directory = await mkdtemp(join(process.env.RUNNER_TEMP, 'vinyl-tls-'))
 const certificates = await createTestCertificates(directory)
 const container = process.env.POSTGRES_SERVICE_ID
@@ -21,7 +23,7 @@ try {
 const { readFile, appendFile } = await import('node:fs/promises')
 let verified = false
 for (let attempt = 0; attempt < 30 && !verified; attempt++) {
-  const client = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL, ssl: { rejectUnauthorized: true, ca: await readFile(certificates.caFile, 'utf8') } })
+  const client = new pg.Client({ ...target, ssl: { rejectUnauthorized: true, ca: await readFile(certificates.caFile, 'utf8') } })
   try { await client.connect(); await client.query('SELECT 1'); verified = true } catch { await new Promise(resolve => setTimeout(resolve, 200)) } finally { await client.end() }
 }
 if (!verified) throw new Error('Disposable PostgreSQL verified TLS unavailable')

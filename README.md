@@ -77,11 +77,12 @@ A full-stack web application for a vintage vinyl record store with user authenti
 
    See [PostgreSQL migration/setup](docs/postgresql-migration.md) for Colima on
    Apple Silicon, separate disposable tests, verified TLS and deliberate resets.
-   Keep your existing session configuration; this PR does not change it.
+   Configure a cryptographically generated session signing key; see [secure sessions](docs/secure-sessions.md).
 
 4. **Initialize the database**
    ```bash
    npm run db:init
+   npm run db:init:sessions
    ```
    Seeds the same ten fictional products and no accounts/carts. Initialization is
    repeatable and preserves existing PostgreSQL rows, including password hashes.
@@ -151,7 +152,7 @@ from previous SQLite PRs remain in the corresponding `docs/` change records.
 ```http
 POST /api/auth/register     # Register new user
 POST /api/auth/login      # User login
-GET  /api/auth/logout     # User logout
+POST /api/auth/logout     # JSON body {}; GET/HEAD return 405, Allow: POST
 GET  /api/auth/me         # Get current user profile
 ```
 
@@ -207,7 +208,7 @@ vinyl-shop-fullstack-auth/
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `SPIRAL_SESSION_SECRET` | Secret key for session encryption | `jellyfish-baskingshark` |
+| `SPIRAL_SESSION_SECRET` | Required 64-character hex signing key from 32 random bytes | None |
 | `PORT` | Server port | `8000` |
 
 ### Database
@@ -252,3 +253,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 For questions or support, please open an issue on GitHub.
  
+
+See [secure persistent sessions](docs/secure-sessions.md) for the breaking POST-only logout contract, explicit session initialization, secrets/rotation, cookie policy, verified-TLS security tests and the unverified Azure proxy deployment boundary.

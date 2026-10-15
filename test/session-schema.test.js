@@ -22,3 +22,18 @@ test('incompatible session schema fails without replacing data', async t => {
   await assert.rejects(initializeSessions(database))
   assert.deepEqual((await database.query('SELECT * FROM user_sessions')).rows, [{ sid: 'sentinel' }])
 })
+test('readiness requires every session DML privilege, not just one', async t => {
+ const {database}=await postgresFixture(t);await initializeSessions(database)
+ await database.query('REVOKE UPDATE ON user_sessions FROM CURRENT_USER')
+ await assert.rejects(validateSessionSchema(database),/unavailable/)
+})
+test('session initialization preserves application rows and rejects partial expiry indexes',async t=>{
+ const {database}=await postgresFixture(t);await initializeDatabase(database);await initializeSessions(database)
+ await database.query("INSERT INTO users(email,username,password) VALUES ('fixture@example.invalid','fixture','unchanged')")
+ await database.query('INSERT INTO cart_items(user_id,product_id) SELECT id,1 FROM users')
+ const snapshot=()=>Promise.all(['users','cart_items','products'].map(table=>database.query(`SELECT * FROM ${table} ORDER BY id`).then(r=>r.rows)))
+ const before=await snapshot();await initializeSessions(database);assert.deepEqual(await snapshot(),before)
+ await database.query("DROP INDEX user_sessions_expire_idx; CREATE INDEX user_sessions_expire_idx ON user_sessions(expire) WHERE sid='partial'")
+ await assert.rejects(initializeSessions(database),/indexes/)
+ assert.deepEqual(await snapshot(),before)
+})

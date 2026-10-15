@@ -27,3 +27,6 @@ test('invalid keys and unsafe production inputs fail without echoing values', ()
   const env = production()
   assert.throws(() => sessionConfig({ ...env, SPIRAL_SESSION_PREVIOUS_SECRETS: JSON.stringify([env.SPIRAL_SESSION_SECRET]) }))
 })
+test('broad explicit networks cannot impersonate a narrowly trusted proxy',()=>{
+ for(const range of ['0.0.0.0/1','128.0.0.0/1','::/1','8000::/1','10.0.0.0/9']) assert.throws(()=>sessionConfig({...production(),TRUSTED_PROXY_CIDRS:range}))
+})

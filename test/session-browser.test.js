@@ -41,9 +41,9 @@ test('Chromium enforces production cookies and POST logout with actual frontend 
  // Non-localhost mapped hostname avoids the browser's special HTTP localhost cookie exception.
  await context.addCookies([cookie])
  const httpPage=await context.newPage()
- let sent
- httpPage.on('request',r=>{sent=r.headers().cookie})
  const httpOrigin=`http://vinyl.test:${new URL(child.baseUrl).port}`
+ const observed=httpPage.waitForRequest(httpOrigin+'/api/auth/me')
  const response=await httpPage.goto(httpOrigin+'/api/auth/me')
+ const sent=(await (await observed).allHeaders()).cookie
  assert.equal(response.status(),400);assert.equal(sent,undefined)
 })

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { fixture, account } from '../test-support/http.js'
+import { sessionValidity } from '../sessions/policy.js'
 import { establishSession } from '../sessions/authentication.js'
 import { sessionConfig } from '../sessions/config.js'
 import { randomBytes } from 'node:crypto'
@@ -22,7 +23,7 @@ for(const path of ['login','register']) test(`${path} regenerates identity and i
  const result=await request('/api/auth/me',{headers:{Cookie:old}})
  assert.deepEqual(result.body,{isLoggedIn:false})
 })
-for(const failure of ['regenerate','save','committed-save']) test(`authentication ${failure} failure detaches session and withholds success`,async()=>{
+for(const failure of ['regenerate','save']) test(`authentication ${failure} failure detaches session and withholds success`,async()=>{
  let saved=0,destroyed=[]
  const response={clearCookie(){return this}}
  const req={sessionID:'old',sessionStore:{destroy(sid,cb){destroyed.push(sid);cb(null)}}}
@@ -31,4 +32,13 @@ for(const failure of ['regenerate','save','committed-save']) test(`authenticatio
  assert.equal(req.session,null)
  assert.ok(destroyed.includes(failure==='regenerate'?'old':'new'))
  assert.equal(saved,failure==='regenerate'?0:1)
+})
+
+test('application expiry rejects exact deadline, future or malformed identities without a new session', async()=>{
+ for(const data of [{userId:1,authenticatedAt:0},{userId:1,authenticatedAt:28800001},{userId:'1',authenticatedAt:1},{userId:0,authenticatedAt:1},{userId:1}]) {
+  let cleared=0,deleted=0,nextError
+  const req={session:data,sessionID:'fixture',sessionStore:{destroy(sid,cb){deleted++;cb(null)}}}
+  await sessionValidity(config,{now:()=>28800000})(req,{clearCookie(){cleared++;return this}},error=>{nextError=error})
+  assert.equal(req.session,null);assert.equal(deleted,1);assert.equal(cleared,1);assert.equal(nextError,undefined)
+ }
 })

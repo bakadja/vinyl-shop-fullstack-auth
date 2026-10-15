@@ -13,16 +13,22 @@ test('sessions survive restarts and workers, respect rotation and reject expired
  const first=await start(oldKey)
  const created=await first.request('/api/auth/register',{method:'POST',body:account()});assert.equal(created.status,201)
  const Cookie=created.setCookies[0].split(';')[0]
- await first.stop()
+ await first.request('/api/cart/add',{method:'POST',headers:{Cookie},body:{productId:1}})
+ const originalCart=(await first.request('/api/cart',{headers:{Cookie}})).body
+ assert.equal(await first.stop('SIGINT'),0)
  const second=await start(nextKey,{SPIRAL_SESSION_PREVIOUS_SECRETS:JSON.stringify([oldKey])})
  const me=()=>second.request('/api/auth/me',{headers:{Cookie}})
  assert.equal((await me()).body.isLoggedIn,true)
+ assert.deepEqual((await second.request('/api/cart',{headers:{Cookie}})).body,originalCart)
  const worker=await start(nextKey,{SPIRAL_SESSION_PREVIOUS_SECRETS:JSON.stringify([oldKey])})
  assert.equal((await worker.request('/api/auth/me',{headers:{Cookie}})).body.isLoggedIn,true)
  const removed=await start(nextKey)
  assert.deepEqual((await removed.request('/api/auth/me',{headers:{Cookie}})).body,{isLoggedIn:false})
- const before=(await f.database.query('SELECT expire FROM user_sessions')).rows[0].expire
- await me(); assert.deepEqual((await f.database.query('SELECT expire FROM user_sessions')).rows[0].expire,before)
+ const current=await second.request('/api/auth/login',{method:'POST',body:account()})
+ const newCookie=current.setCookies[0].split(';')[0]
+ assert.equal((await removed.request('/api/auth/me',{headers:{Cookie:newCookie}})).body.isLoggedIn,true)
+ const before=(await f.database.query('SELECT expire FROM user_sessions ORDER BY sid')).rows.map(row=>row.expire)
+ await me(); assert.deepEqual((await f.database.query('SELECT expire FROM user_sessions ORDER BY sid')).rows.map(row=>row.expire),before)
  await f.database.query("UPDATE user_sessions SET sess=jsonb_set(sess::jsonb,'{authenticatedAt}',to_jsonb((extract(epoch from now())*1000)::bigint-28800001))::json")
  assert.deepEqual((await me()).body,{isLoggedIn:false})
  assert.equal((await second.request('/api/cart',{headers:{Cookie}})).status,401)

@@ -33,6 +33,10 @@ test('production verifies DB TLS and rejects spoofed or ambiguous protocol befor
     const req=http.request(child.baseUrl+'/api/auth/me',{headers:['X-Forwarded-Proto','https','x-forwarded-proto','https']},res=>{res.resume();res.on('end',()=>resolve(res.statusCode))});req.on('error',reject);req.end()
   })
   assert.equal(duplicate,400)
+  for (const Origin of [undefined, 'null', 'https://evil.example']) {
+    const r = await child.request('/api/auth/logout', { method: 'POST', body: {}, headers: { 'X-Forwarded-Proto': 'https', ...(Origin === undefined ? {} : { Origin }) } })
+    assert.equal(r.status, 403)
+  }
   const untrusted=await startSessionProcess({after:fn=>hooks.push(fn)},{childEnv:f.childEnv,cwd:f.directory,overrides:{...overrides,TRUSTED_PROXY_CIDRS:'::1/128'}})
   assert.equal((await untrusted.request('/api/auth/me',{headers:{'X-Forwarded-Proto':'https'}})).status,400)
   assert.equal((await f.database.query('SELECT count(*) FROM user_sessions')).rows[0].count,'0')

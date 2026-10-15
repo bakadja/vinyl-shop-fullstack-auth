@@ -11,7 +11,7 @@ export async function validateSessionSchema(database) {
     WHERE c.relnamespace=current_schema()::regnamespace AND c.relname='user_sessions'`)).rows
   if (!indexes.some(i => i.indisprimary && i.indisvalid && i.field === 'sid' && i.indnkeyatts === 1) ||
       !indexes.some(i => i.indisvalid && i.field === 'expire' && i.indnkeyatts === 1 && i.complete && i.amname === 'btree')) throw new Error('Incompatible session indexes')
-  const privileges = (await database.query("SELECT has_table_privilege('user_sessions','SELECT,INSERT,UPDATE,DELETE') AS allowed")).rows[0]
+  const privileges = (await database.query("SELECT has_table_privilege('user_sessions','SELECT') AND has_table_privilege('user_sessions','INSERT') AND has_table_privilege('user_sessions','UPDATE') AND has_table_privilege('user_sessions','DELETE') AS allowed")).rows[0]
   if (!privileges.allowed) throw new Error('Session storage unavailable')
 }
 export async function initializeSessions(database) {
