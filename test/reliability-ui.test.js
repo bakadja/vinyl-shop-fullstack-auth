@@ -236,3 +236,102 @@ test('logout uses POST JSON and redirects only after successful confirmation', a
   assert.equal(calls, 1)
   assert.equal(window.location.href, '/')
 })
+
+test('cart page removal handles both the normal path and an unexpected control failure', async t => {
+  const { document } = setup(t)
+  let deletes = 0
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (options?.method === 'DELETE') { deletes++; return response(null, 204) }
+    if (url === '/api/cart/') return response({ items: deletes ? [] : items })
+    if (url === '/api/auth/me') return response({ isLoggedIn: false })
+    throw new Error('Unexpected URL')
+  })
+  await import('../public/js/cart.js?coverage=remove-event')
+  await setImmediate()
+  const list = document.getElementById('cart-list')
+  const click = { target: { matches: selector => selector === '.remove-btn', dataset: { id: '1' } } }
+  await list.listeners.click(click)
+  assert.equal(deletes, 1)
+  assert.equal(list.children.length, 0)
+
+  // A DOM control can become unusable while an event is dispatched.
+  const button = document.getElementById('checkout-btn')
+  Object.defineProperty(button, 'disabled', {
+    configurable: true,
+    get: () => false,
+    set: () => { throw new Error('Detached checkout control') }
+  })
+  await list.listeners.click(click)
+  assert.match(document.getElementById('user-message').textContent, /Unable to remove item/i)
+})
+
+test('cart checkout reports an unexpected failure without leaving a rejected listener promise', async t => {
+  const { document } = setup(t)
+  t.mock.method(globalThis, 'fetch', async url => response(url === '/api/auth/me' ? { isLoggedIn: false } : { items: [] }))
+  await import('../public/js/cart.js?coverage=checkout-event')
+  await setImmediate()
+  const button = document.getElementById('checkout-btn')
+  Object.defineProperty(button, 'disabled', {
+    configurable: true,
+    get: () => false,
+    set: () => { throw new Error('Detached checkout control') }
+  })
+  await button.listeners.click()
+  assert.match(document.getElementById('user-message').textContent, /Unable to clear cart/i)
+})
+
+test('cart startup failure keeps checkout disabled and shows an accessible message', async t => {
+  const { document } = setup(t)
+  t.mock.method(globalThis, 'fetch', async url => response(url === '/api/auth/me' ? { isLoggedIn: false } : { items: [] }))
+  const getElementById = document.getElementById
+  document.getElementById = id => id === 'greeting' ? null : getElementById(id)
+  await import('../public/js/cart.js?coverage=cart-startup')
+  await setImmediate()
+  assert.match(document.getElementById('user-message').textContent, /Unable to load cart/i)
+  assert.equal(document.getElementById('checkout-btn').disabled, true)
+})
+
+test('catalogue event handler reports an unexpected search error and keeps events responsive', async t => {
+  const { document } = setup(t)
+  const input = document.getElementById('search-input')
+  input.value = ''
+  document.getElementById('genre-select').value = ''
+  const form = document.createElement('form')
+  document.querySelector = selector => selector === 'form' ? form : null
+  t.mock.method(globalThis, 'fetch', async url => {
+    if (url === '/api/products/genres') return response([])
+    if (url === '/api/auth/me') return response({ isLoggedIn: false })
+    if (url.startsWith('/api/products?')) return response([])
+    throw new Error('Unexpected URL')
+  })
+  await import('../public/js/index.js?coverage=search-error')
+  await setImmediate()
+  await form.listeners.submit({ preventDefault() {} })
+  await document.getElementById('genre-select').listeners.change({ preventDefault() {} })
+  Object.defineProperty(input, 'value', {
+    configurable: true,
+    get: () => { throw new Error('Unexpected search field failure') }
+  })
+  await input.listeners.input({ preventDefault() {} })
+  assert.match(document.getElementById('catalog-message').textContent, /Unable to load products/i)
+})
+
+test('catalogue startup failure reports the problem after registering search listeners', async t => {
+  const { document } = setup(t)
+  document.getElementById('search-input').value = ''
+  document.getElementById('genre-select').value = ''
+  const form = document.createElement('form')
+  document.querySelector = selector => selector === 'form' ? form : null
+  t.mock.method(globalThis, 'fetch', async url => {
+    if (url === '/api/products/genres') return response([])
+    if (url === '/api/auth/me') return response({ isLoggedIn: false })
+    if (url.startsWith('/api/products?')) return response([])
+    throw new Error('Unexpected URL')
+  })
+  const getElementById = document.getElementById
+  document.getElementById = id => id === 'greeting' ? null : getElementById(id)
+  await import('../public/js/index.js?coverage=startup-error')
+  await setImmediate()
+  assert.equal(typeof document.getElementById('search-input').listeners.input, 'function')
+  assert.match(document.getElementById('catalog-message').textContent, /Unable to initialize the catalogue/i)
+})
