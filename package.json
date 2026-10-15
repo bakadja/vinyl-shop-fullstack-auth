@@ -8,6 +8,7 @@
         "start": "node --env-file-if-exists=.env server.js",
         "db:init": "node --env-file-if-exists=.env scripts/init-db.js",
         "test": "node --test",
+        "test:coverage": "node --test --experimental-test-coverage --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=coverage/lcov.info",
         "test:postgres": "bash scripts/start-test-postgres.sh npm test",
         "db:init:sessions": "node --env-file-if-exists=.env scripts/init-sessions.js"
     },

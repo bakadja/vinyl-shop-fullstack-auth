@@ -123,7 +123,17 @@ npm audit --audit-level=high
 npm run test:postgres            # Starts/stops a new disposable PostgreSQL 17 cluster
 # Or provision the separate Compose test service, export TEST_DATABASE_URL, then:
 npm test
+# On the disposable test database, generate native Node.js LCOV:
+mkdir -p coverage
+npm run test:coverage
 ```
+
+Linux GitHub Actions also generates `coverage/lcov.info` and uploads the
+`linux-lcov` artifact. Import into SonarQube Cloud requires switching from
+automatic to CI-based analysis and supplying a repository `SONAR_TOKEN`
+secret; the scanner remains gated until the owner completes that setup.
+See [test coverage and SonarCloud](docs/sonar-coverage.md) for the secure
+transition and important measurement limits.
 
 The suite retains the original 57 behavioral tests, with documented PostgreSQL
 adaptations for SQLite-specific setup and schema checks, and adds PostgreSQL
