@@ -3,7 +3,7 @@ import { once } from 'node:events'
 import { fileURLToPath } from 'node:url'
 import { randomBytes } from 'node:crypto'
 const serverFile = fileURLToPath(new URL('../server.js', import.meta.url))
-const allowed = new Set(['DATABASE_URL', 'DATABASE_SCHEMA', 'PGSSLMODE', 'PGSSLROOTCERT', 'NODE_ENV', 'PUBLIC_ORIGIN', 'SESSION_PROXY_MODE', 'TRUSTED_PROXY_CIDRS', 'SPIRAL_SESSION_PREVIOUS_SECRETS', 'SPIRAL_SESSION_SECRET'])
+const allowed = new Set(['AUTH_ABUSE_HMAC_KEY', 'DATABASE_URL', 'DATABASE_SCHEMA', 'PGSSLMODE', 'PGSSLROOTCERT', 'NODE_ENV', 'PUBLIC_ORIGIN', 'SESSION_PROXY_MODE', 'TRUSTED_PROXY_CIDRS', 'SPIRAL_SESSION_PREVIOUS_SECRETS', 'SPIRAL_SESSION_SECRET'])
 export async function startSessionProcess(t, { childEnv, cwd, secret = randomBytes(32).toString('hex'), overrides = {} }) {
   const env = { PORT: '0', SPIRAL_SESSION_SECRET: secret }
   for (const [name, value] of Object.entries({ ...childEnv, ...overrides })) if (allowed.has(name) && value !== undefined) env[name] = value

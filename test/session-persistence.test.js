@@ -1,3 +1,4 @@
+import { initializeAbuse } from '../sessions/abuse-schema.js'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { randomBytes } from 'node:crypto'
@@ -6,7 +7,7 @@ import { initializeDatabase } from '../scripts/init-db.js'
 import { initializeSessions } from '../sessions/schema.js'
 import { startSessionProcess } from '../test-support/session-process.js'
 import { account } from '../test-support/http.js'
-async function setup(t){const hooks=[];t.after(async()=>{for(const h of hooks)await h()});const f=await postgresFixture(t);await initializeDatabase(f.database);await initializeSessions(f.database);return {...f,harness:{after:h=>hooks.push(h)}}}
+async function setup(t){const hooks=[];t.after(async()=>{for(const h of hooks)await h()});const f=await postgresFixture(t);await initializeDatabase(f.database);await initializeSessions(f.database);await initializeAbuse(f.database);return {...f,harness:{after:h=>hooks.push(h)}}}
 test('sessions survive restarts and workers, respect rotation and reject expired identity before pruning',async t=>{
  const f=await setup(t),oldKey=randomBytes(32).toString('hex'),nextKey=randomBytes(32).toString('hex')
  const start=(secret,overrides={})=>startSessionProcess(f.harness,{childEnv:f.childEnv,cwd:f.directory,secret,overrides})

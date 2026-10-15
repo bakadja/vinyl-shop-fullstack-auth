@@ -67,6 +67,7 @@ resource app 'Microsoft.Web/sites@2023-12-01' = {
         { name: 'PGSSLMODE', value: 'verify-full' }
         { name: 'PGSSLROOTCERT', value: '/home/site/wwwroot/certificates/azure-postgresql-roots.pem' }
         { name: 'PGPASSWORD', value: '@Microsoft.KeyVault(SecretUri=${vault.properties.vaultUri}secrets/${runtimePasswordSecretName})' }
+        { name: 'AUTH_ABUSE_HMAC_KEY', value: '@Microsoft.KeyVault(SecretUri=${vault.properties.vaultUri}secrets/auth-abuse-hmac-key)' }
         { name: 'SPIRAL_SESSION_SECRET', value: '@Microsoft.KeyVault(SecretUri=${vault.properties.vaultUri}secrets/${sessionSecretName})' }
         { name: 'SPIRAL_SESSION_PREVIOUS_SECRETS', value: '@Microsoft.KeyVault(SecretUri=${vault.properties.vaultUri}secrets/${verificationKeysName})' }
         { name: 'SCM_DO_BUILD_DURING_DEPLOYMENT', value: 'false' }

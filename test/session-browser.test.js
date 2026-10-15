@@ -1,3 +1,4 @@
+import { initializeAbuse } from '../sessions/abuse-schema.js'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -11,7 +12,7 @@ import { account } from '../test-support/http.js'
 test('Chromium enforces production cookies and POST logout with actual frontend assets', {timeout:60000}, async t=>{
  const hooks=[];t.after(async()=>{for(const hook of hooks.reverse())await hook()})
  const f=await postgresFixture(t),harness={after:hook=>hooks.push(hook)}
- await initializeDatabase(f.database);await initializeSessions(f.database)
+ await initializeDatabase(f.database);await initializeSessions(f.database);await initializeAbuse(f.database)
  const certificates=await createTestCertificates()
  harness.after(certificates.cleanup)
  let child

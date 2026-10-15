@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -76,6 +76,6 @@ export async function postgresFixture(t, env = process.env) {
   database = createDatabase({ ...config, options: `-c search_path=${schema}`, application_name: `vinyl-test-${schema}` })
   directory = await mkdtemp(join(tmpdir(), 'vinyl-postgres-test-'))
   return { database, schema, directory, childEnv: {
-    DATABASE_URL: env.TEST_DATABASE_URL, DATABASE_SCHEMA: schema, PGSSLMODE: 'disable', NODE_ENV: 'test'
+    AUTH_ABUSE_HMAC_KEY: randomBytes(32).toString('hex'), DATABASE_URL: env.TEST_DATABASE_URL, DATABASE_SCHEMA: schema, PGSSLMODE: 'disable', NODE_ENV: 'test'
   } }
 }

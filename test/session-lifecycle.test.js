@@ -1,3 +1,4 @@
+import { initializeAbuse } from '../sessions/abuse-schema.js'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { once } from 'node:events'
@@ -16,7 +17,7 @@ test('production startup fails before readiness for wrong CA or missing session 
  const f=await postgresFixture(t);await initializeDatabase(f.database)
  await assert.rejects(startSessionProcess({after:h=>hooks.push(h)},{childEnv:f.childEnv,cwd:f.directory}),/startup failed/)
  assert.equal((await f.database.query("SELECT to_regclass('user_sessions') AS name")).rows[0].name,null)
- await initializeSessions(f.database)
+ await initializeSessions(f.database);await initializeAbuse(f.database)
  const wrong=await createTestCertificates()
  hooks.push(wrong.cleanup)
  await assert.rejects(startSessionProcess({after:h=>hooks.push(h)},{childEnv:f.childEnv,cwd:f.directory,overrides:{NODE_ENV:'production',PGSSLMODE:'verify-full',PGSSLROOTCERT:wrong.caFile,PUBLIC_ORIGIN:'https://shop.example',SESSION_PROXY_MODE:'verified-proxy',TRUSTED_PROXY_CIDRS:'127.0.0.1/32'}}),/startup failed/)
@@ -24,7 +25,7 @@ test('production startup fails before readiness for wrong CA or missing session 
 test('repeated shutdown signals honor the ten-second deadline with a blocked real DB request',{timeout:25000},async t=>{
  let child,release,transaction
  t.after(async()=>{if(release)release();if(transaction)await transaction;if(child&&child.exitCode===null&&child.signalCode===null){const done=once(child,'exit');child.kill('SIGKILL');await done}})
- const f=await postgresFixture(t);await initializeDatabase(f.database);await initializeSessions(f.database)
+ const f=await postgresFixture(t);await initializeDatabase(f.database);await initializeSessions(f.database);await initializeAbuse(f.database)
  child=spawn(process.execPath,[serverFile],{cwd:f.directory,env:{...f.childEnv,PORT:'0',SPIRAL_SESSION_SECRET:randomBytes(32).toString('hex')},stdio:['ignore','pipe','pipe']})
  let logs='';child.stderr.on('data',chunk=>{logs+=chunk})
  const url=await new Promise((resolve,reject)=>{child.once('error',reject);child.stdout.on('data',chunk=>{const m=String(chunk).match(/localhost:(\d+)/);if(m)resolve(`http://127.0.0.1:${m[1]}`)})})

@@ -1,3 +1,4 @@
+import { initializeAbuse } from '../sessions/abuse-schema.js'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -14,7 +15,7 @@ test('public assets bypass broken session storage and suppress Express disclosur
   t.after(async () => { for (const hook of hooks.reverse()) await hook() })
   const { database, childEnv } = await postgresFixture(t)
   await initializeDatabase(database)
-  await initializeSessions(database)
+  await initializeSessions(database);await initializeAbuse(database)
   const harness = { after: hook => hooks.push(hook) }
   const { baseUrl } = await startSessionProcess(harness, {
     childEnv,

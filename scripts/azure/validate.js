@@ -16,7 +16,7 @@ function validateApplication(app, plan) {
   for (const [name, value] of Object.entries({ NODE_ENV: 'production', PGSSLMODE: 'verify-full', SESSION_PROXY_MODE: 'verified-proxy', PGSSLROOTCERT: '/home/site/wwwroot/certificates/azure-postgresql-roots.pem', SCM_DO_BUILD_DURING_DEPLOYMENT: 'false', WEBSITE_RUN_FROM_PACKAGE: '1' })) {
     if (settings[name] !== value) templateError()
   }
-  for (const name of ['PGPASSWORD', 'SPIRAL_SESSION_SECRET', 'SPIRAL_SESSION_PREVIOUS_SECRETS']) if (!settings[name]?.includes('@Microsoft.KeyVault(SecretUri=')) templateError()
+  for (const name of ['PGPASSWORD', 'SPIRAL_SESSION_SECRET', 'SPIRAL_SESSION_PREVIOUS_SECRETS', 'AUTH_ABUSE_HMAC_KEY']) if (!settings[name]?.includes('@Microsoft.KeyVault(SecretUri=')) templateError()
   if (Object.keys(settings).some(name => name.startsWith('SESSION_COOKIE_') || name === 'SESSION_ROLLING' || name === 'NODE_TLS_REJECT_UNAUTHORIZED')) templateError()
 }
 function validateDatabase(pg, secure) {

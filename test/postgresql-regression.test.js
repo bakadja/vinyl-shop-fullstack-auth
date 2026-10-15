@@ -1,3 +1,4 @@
+import { initializeAbuse } from '../sessions/abuse-schema.js'
 import { randomBytes } from 'node:crypto'
 import { initializeSessions } from '../sessions/schema.js'
 import assert from 'node:assert/strict'
@@ -180,7 +181,7 @@ test('npm start accepts environment-only configuration and serves PostgreSQL cat
   })
   const isolated = await postgresFixture(t)
   await initializeDatabase(isolated.database)
-  await initializeSessions(isolated.database)
+  await initializeSessions(isolated.database);await initializeAbuse(isolated.database)
   const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
   await writeFile(join(isolated.directory, 'package.json'), JSON.stringify(packageJson))
   await symlink(fileURLToPath(new URL('../server.js', import.meta.url)), join(isolated.directory, 'server.js'))
