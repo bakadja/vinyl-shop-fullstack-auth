@@ -44,3 +44,5 @@ No remaining review finding is deferred. The coverage finding was completed as a
 - Mapped vinyl.test browser host: avoids localhost's special Secure-cookie HTTP exception. Browser proxy certificate validation alone is bypassed; cost is no production PKI guarantee from this fixture. Database TLS remains verified.
 - Request-object write acknowledgement: prevents framework-induced unawaited duplicate upserts. Cost if wrong would be suppressing a required update; tests retain changed-identity writes, fixed expiry and all PG reads/outage checks.
 - Prune/timezone gap regraded to acceptance work: native fixture now uses a non-UTC default and a real blocked prune. Cost is slightly more test runtime and a deliberately different server timezone from application UTC.
+
+Execution records are preserved in the ignored .superpowers/sdd/2026-10-15-secure-sessions directory. Automatic approval review rejected irreversible cleanup of the ledger/review artifacts without explicit approval; no deletion or workaround was attempted.

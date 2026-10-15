@@ -10,7 +10,7 @@
 
 **Spec:** [Approved specification with POST-only amendment](../specs/2026-10-15-secure-sessions-design.md).
 
-**Status:** Approved by the human for native sequential execution on2026-10-15. Implementation and local validation completed; one independent review completed and its findings corrected in a verified fix pass; final suite118/118 and audit0 vulnerabilities. The original planning boundary below is retained as historical context. All checkboxes below are future work. No application changes, dependency installation, branch creation, commit, push or PR publication are performed while preparing this plan. Spec approval authorizes this document only. Recommend native sequential execution because tasks share configuration, pool and fixture interfaces; the human may choose subagent-driven execution instead. Publication requires a later instruction.
+**Status:** Approved by the human for native sequential execution on2026-10-15. Implementation and local validation completed; one independent review completed and its findings corrected in a verified fix pass; final suite118/118 and audit0 vulnerabilities. The original planning boundary below is retained as historical context. Checkboxes below preserve the original execution instructions; completion evidence is linked in the handoff record at the end. No application changes, dependency installation, branch creation, commit, push or PR publication are performed while preparing this plan. Spec approval authorizes this document only. Recommend native sequential execution because tasks share configuration, pool and fixture interfaces; the human may choose subagent-driven execution instead. Publication requires a later instruction.
 
 ## Global Constraints
 
