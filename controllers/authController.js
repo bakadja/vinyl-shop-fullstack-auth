@@ -1,3 +1,4 @@
+import { establishSession } from '../sessions/authentication.js'
 import validator from 'validator'
 import { getDatabase } from '../db/db.js'
 import bcrypt from 'bcryptjs'
@@ -43,7 +44,7 @@ export async function registerUser(req, res) {
 
     const result = await db.query('INSERT INTO users (name, email, username, password) VALUES ($1, $2, $3, $4) RETURNING id', [name, email, username, hashed])
 
-    req.session.userId = result.rows[0].id
+    await establishSession(req, res, result.rows[0].id, req.app.locals.sessionConfig)
 
     res.status(201).json({ message: 'User registered' })
   } catch (err) {
@@ -83,7 +84,7 @@ export async function loginUser(req, res) {
 
     }
 
-    req.session.userId = user.id
+    await establishSession(req, res, user.id, req.app.locals.sessionConfig)
     res.json({ message: 'Logged in' })
 
   } catch (err) {

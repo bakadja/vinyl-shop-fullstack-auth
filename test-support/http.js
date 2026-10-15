@@ -59,10 +59,11 @@ export async function fixture(t) {
 
   function client() {
     let cookie
-    return async (path, { method = 'GET', body } = {}) => {
+    return async (path, { method = 'GET', body, headers: suppliedHeaders = {} } = {}) => {
       const headers = {}
       if (cookie) headers.Cookie = cookie
       if (body !== undefined) headers['Content-Type'] = 'application/json'
+      Object.assign(headers, suppliedHeaders)
       const response = await fetch(`${baseUrl}${path}`, {
         method, headers,
         body: body === undefined ? undefined : JSON.stringify(body),
