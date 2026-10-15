@@ -3,6 +3,8 @@ name: API tests
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
 
 permissions:
   contents: read
@@ -57,10 +59,24 @@ jobs:
         run: |
           node scripts/check-ci-certificate-guards.js
           node scripts/configure-ci-test-tls.js
-      - name: Run database and HTTP integration tests
-        run: npm test
+      - name: Run database and HTTP integration tests with LCOV
+        run: |
+          mkdir -p coverage
+          npm run test:coverage
+      - name: Verify non-empty LCOV report
+        run: |
+          test -s coverage/lcov.info
+          grep -q '^SF:' coverage/lcov.info
+      - name: Upload Linux LCOV report
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-lcov
+          path: coverage/lcov.info
+          if-no-files-found: error
+          retention-days: 7
 
   test-macos:
+    if: github.event_name == 'pull_request'
     runs-on: macos-latest
     timeout-minutes: 20
     steps:
@@ -82,3 +98,36 @@ jobs:
       - name: Run database and HTTP integration tests
         # The helper owns a fresh private cluster and always stops it via EXIT trap.
         run: bash scripts/start-test-postgres.sh npm test
+
+  # Keep existing SonarCloud automatic analysis until the repository owner explicitly
+  # switches SonarCloud to CI-based analysis and enables SONAR_CI_ENABLED.
+  # Never expose SONAR_TOKEN to PR test code or to fork-origin pull requests.
+  sonar-coverage:
+    if: >-
+      ${{ vars.SONAR_CI_ENABLED == 'true' &&
+          (github.event_name == 'push' ||
+           github.event.pull_request.head.repo.full_name == github.repository) }}
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Download coverage from unprivileged Linux tests
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: linux-lcov
+          path: coverage
+      - name: Check coverage artifact
+        run: |
+          test -s coverage/lcov.info
+          grep -q '^SF:' coverage/lcov.info
+      - name: Scan with SonarQube Cloud
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
