@@ -18,7 +18,7 @@ export function peerIdentity(address) {
   const [left, right = ''] = canonical.split('::')
   const head = left ? left.split(':') : []
   const tail = right ? right.split(':') : []
-  const expanded = [...head, ...Array(8 - head.length - tail.length).fill('0'), ...tail]
+  const expanded = [...head, ...new Array(8 - head.length - tail.length).fill('0'), ...tail]
   return expanded.slice(0, 4).map(part => part.padStart(4, '0')).join(':') + '::/64'
 }
 
