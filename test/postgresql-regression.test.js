@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto'
+import { initializeSessions } from '../sessions/schema.js'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { postgresFixture } from '../test-support/postgresql.js'
@@ -178,10 +180,11 @@ test('npm start accepts environment-only configuration and serves PostgreSQL cat
   })
   const isolated = await postgresFixture(t)
   await initializeDatabase(isolated.database)
+  await initializeSessions(isolated.database)
   const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
   await writeFile(join(isolated.directory, 'package.json'), JSON.stringify(packageJson))
   await symlink(fileURLToPath(new URL('../server.js', import.meta.url)), join(isolated.directory, 'server.js'))
-  child = spawn('npm', ['start'], { detached: true, cwd: isolated.directory, env: { ...isolated.childEnv, PORT: '0', PATH: process.env.PATH, SPIRAL_SESSION_SECRET: 'synthetic-cli-test-secret' }, stdio: ['ignore', 'pipe', 'pipe'] })
+  child = spawn('npm', ['start'], { detached: true, cwd: isolated.directory, env: { ...isolated.childEnv, PORT: '0', PATH: process.env.PATH, SPIRAL_SESSION_SECRET: randomBytes(32).toString('hex') }, stdio: ['ignore', 'pipe', 'pipe'] })
   const baseUrl = await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('npm start timed out')), 10000)
     child.once('error', error => { clearTimeout(timer); reject(error) })

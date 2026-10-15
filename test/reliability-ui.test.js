@@ -222,3 +222,17 @@ test('catalog bootstrap cannot overwrite a search made during initial loading', 
   await setImmediate()
   assert.match(document.getElementById('products-container').textContent, /Selling Dogma/)
 })
+
+test('logout uses POST JSON and redirects only after successful confirmation', async t => {
+  setup(t)
+  let calls = 0
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    calls++
+    assert.equal(url, '/api/auth/logout/')
+    assert.deepEqual(options, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    return response({ message: 'Logged out' })
+  })
+  await logout()
+  assert.equal(calls, 1)
+  assert.equal(window.location.href, '/')
+})

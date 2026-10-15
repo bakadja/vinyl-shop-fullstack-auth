@@ -5,6 +5,7 @@ export function createDatabase(config) {
   const pool = new pg.Pool(config)
   pool.on('error', () => console.error('PostgreSQL idle connection failed'))
   return {
+    getPool: () => pool,
     query: (text, values = []) => pool.query(text, values),
     async transaction(work) {
       const client = await pool.connect()

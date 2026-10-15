@@ -25,7 +25,7 @@ export function testTarget(env = process.env) {
     options: '-c search_path=vinyl_test_control', application_name: 'vinyl-test-guard' }
 }
 
-async function verifyTestServer(db) {
+export async function verifyTestServer(db) {
   const { rows } = await db.query(`SELECT current_database() AS database, current_user AS username,
     r.rolsuper OR r.rolcreatedb OR r.rolcreaterole OR r.rolreplication OR r.rolbypassrls AS privileged,
     EXISTS (SELECT 1 FROM pg_auth_members WHERE member = r.oid) AS memberships,

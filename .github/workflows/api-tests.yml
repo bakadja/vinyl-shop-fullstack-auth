@@ -36,6 +36,8 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Audit dependencies
         run: npm audit --audit-level=high
+      - name: Install Chromium
+        run: npx --no-install playwright install --with-deps chromium
       - name: Install PostgreSQL client
         run: |
           sudo apt-get update
@@ -48,6 +50,13 @@ jobs:
           echo "::add-mask::$VINYL_TEST_PASSWORD"
           psql -X -h 127.0.0.1 -p 5432 -U postgres -d postgres -f test-support/provision-test-db.sql
           echo "TEST_DATABASE_URL=postgresql://vinyl_shop_test:${VINYL_TEST_PASSWORD}@127.0.0.1:5432/vinyl_shop_test" >> "$GITHUB_ENV"
+      - name: Enable verified TLS on disposable PostgreSQL service
+        env:
+          POSTGRES_SERVICE_ID: ${{ job.services.postgres.id }}
+          PGPASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          node scripts/check-ci-certificate-guards.js
+          node scripts/configure-ci-test-tls.js
       - name: Run database and HTTP integration tests
         run: npm test
 
@@ -66,6 +75,8 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Audit dependencies
         run: npm audit --audit-level=high
+      - name: Install Chromium
+        run: npx --no-install playwright install chromium
       - name: Install PostgreSQL 17
         run: brew install postgresql@17
       - name: Run database and HTTP integration tests
