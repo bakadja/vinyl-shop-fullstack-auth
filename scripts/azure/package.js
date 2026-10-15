@@ -1,8 +1,8 @@
-import { cp, lstat, mkdir, readdir, realpath } from 'node:fs/promises'
+import { cp, lstat, mkdir, readdir, realpath, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-const directories = ['controllers', 'middleware', 'routes', 'sessions', 'public']
-const files = ['server.js', 'package.json', 'package-lock.json', 'db/config.js', 'db/db.js', 'db/values.js', 'certificates/azure-postgresql-roots.pem']
+const directories = ['controllers', 'middleware', 'routes', 'sessions', 'telemetry', 'public']
+const files = ['server.js', 'instrument.js', 'package.json', 'package-lock.json', 'db/config.js', 'db/db.js', 'db/values.js', 'certificates/azure-postgresql-roots.pem']
 async function assertSafe(path) {
   const stat = await lstat(path)
   if (stat.isSymbolicLink() || (!stat.isDirectory() && !stat.isFile())) throw new Error('Unsafe runtime artifact')
@@ -13,12 +13,14 @@ async function assertSafe(path) {
     }))
   } else if (!/\.(js|json|html|css|svg|png|ico|pem)$/.test(path)) throw new Error('Unsafe runtime artifact')
 }
-export async function assembleRuntime(source, destination) {
+export async function assembleRuntime(source, destination, { release = process.env.GITHUB_SHA } = {}) {
+  if (!/^[a-f0-9]{40}$/.test(release ?? '')) throw new Error('Invalid runtime release SHA')
   const from = resolve(source), to = resolve(destination)
   if (to === from || to.startsWith(from + '/') && to !== join(from, '.cache', 'azure-runtime')) throw new Error('Unsafe runtime artifact destination')
   await Promise.all([...directories, ...files].map(name => assertSafe(join(from, name))))
   await mkdir(to, { recursive: false })
   await Promise.all([...directories, ...files].map(name => cp(join(from, name), join(to, name), { recursive: true, errorOnExist: true, force: false })))
+  await writeFile(join(to, 'release.json'), JSON.stringify({ release }) + '\n', { flag: 'wx' })
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {

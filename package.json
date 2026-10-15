@@ -5,7 +5,7 @@
     "main": "server.js",
     "type": "module",
     "scripts": {
-        "start": "node --env-file-if-exists=.env server.js",
+        "start": "node --env-file-if-exists=.env --import ./instrument.js server.js",
         "db:init": "node --env-file-if-exists=.env scripts/init-db.js",
         "test": "node --test",
         "test:coverage": "node --test --experimental-test-coverage --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=coverage/lcov.info",
@@ -16,6 +16,7 @@
     "author": "Kevin Ngongang",
     "license": "ISC",
     "dependencies": {
+        "@sentry/node": "11.8.0",
         "bcryptjs": "^3.0.2",
         "connect-pg-simple": "10.0.0",
         "express": "^4.22.3",

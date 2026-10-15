@@ -1,3 +1,5 @@
+import './instrument.js'
+import { captureFailure, flushTelemetry, requestTelemetry } from './telemetry/sentry.js'
 import { closeDatabase, getDatabase } from './db/db.js'
 import express from 'express'
 import { fileURLToPath } from 'node:url'
@@ -30,9 +32,10 @@ function shutdown() {
       if(owner) await owner.close()
       await closeDatabase()
     } catch {
+      captureFailure('shutdown')
       console.error('Session server shutdown failed')
       process.exitCode=1
-    } finally {clearTimeout(deadline)}
+    } finally {await flushTelemetry();clearTimeout(deadline)}
   })()
   return stopping
 }
@@ -44,6 +47,7 @@ try {
   await validateAbuseSchema(db)
   owner=createSessionStore({pool:db.getPool(),config})
   const app=express()
+  app.use(requestTelemetry)
   app.disable('x-powered-by')
   app.locals.sessionConfig=config
   app.set('trust proxy',config.trustPeer)
@@ -79,6 +83,7 @@ try {
   process.on('SIGTERM',shutdown)
   process.on('SIGINT',shutdown)
 } catch {
+  captureFailure('startup')
   console.error('Session server startup failed. Check configuration, connectivity and schema compatibility.')
   process.exitCode=1
   await shutdown()

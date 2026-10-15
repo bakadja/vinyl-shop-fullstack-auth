@@ -8,7 +8,9 @@ import { initializeSessions } from '../sessions/schema.js'
 import { initializeDatabase } from '../scripts/init-db.js'
 import { postgresFixture } from './postgresql.js'
 
-export async function fixture(t) {
+export async function fixture(t, { sentryEnv = {} } = {}) {
+  const telemetry = Object.fromEntries(['SENTRY_DSN', 'SENTRY_RELEASE', 'SENTRY_ENVIRONMENT']
+    .filter(name => sentryEnv[name] !== undefined).map(name => [name, sentryEnv[name]]))
   let child
   // Register child shutdown before schema cleanup: node:test runs after hooks in order.
   t.after(async () => {
@@ -24,7 +26,7 @@ export async function fixture(t) {
   await initializeSessions(database);await initializeAbuse(database)
   child = spawn(process.execPath, [fileURLToPath(new URL('../server.js', import.meta.url))], {
     cwd: directory,
-    env: { ...childEnv, PORT: '0', SPIRAL_SESSION_SECRET: randomBytes(32).toString('hex') },
+    env: { ...childEnv, ...telemetry, PORT: '0', SPIRAL_SESSION_SECRET: randomBytes(32).toString('hex') },
     stdio: ['ignore', 'pipe', 'pipe']
   })
   const baseUrl = await new Promise((resolve, reject) => {
@@ -76,7 +78,7 @@ export async function fixture(t) {
       return { status: response.status, body: text ? JSON.parse(text) : null, cookie: setCookie }
     }
   }
-  return { client, directory, database, schema, childEnv,
+  return { client, baseUrl, directory, database, schema, childEnv,
     shutdown: () => { const exited = once(child, 'exit'); child.kill('SIGTERM'); return exited } }
 }
 
