@@ -76,11 +76,6 @@ a {
     font-size: 1em;
 }
 
-/* Commented out for recording */
-a:visited {
-    /* color: var(--color-accent); */
-}
-
 a:hover {
     color: var(--color-accent);
     text-decoration: underline;

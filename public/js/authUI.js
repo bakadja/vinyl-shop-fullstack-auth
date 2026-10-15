@@ -23,7 +23,7 @@ export async function checkAuth() {
 // ===== Greet user or guest =====
 
 export function renderGreeting(name) {
-  const user = name ? name : 'Guest'
+  const user = name || 'Guest'
   document.getElementById('greeting').textContent = `Welcome, ${user}!`
 }
 

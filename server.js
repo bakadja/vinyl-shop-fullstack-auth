@@ -38,14 +38,16 @@ try {
   await validateSessionSchema(db)
   owner=createSessionStore({pool:db.getPool(),config})
   const app=express()
+  app.disable('x-powered-by')
   app.locals.sessionConfig=config
   app.set('trust proxy',config.trustPeer)
   app.use(productionTransport(config))
   app.use('/api/auth',(req,res,next)=>{res.set('Cache-Control','no-store');next()})
   app.use('/api/auth/logout',logoutMethodGuard)
   app.use(express.json())
-  app.use(session({store:owner.store,secret:config.secrets,name:config.cookieName,resave:false,saveUninitialized:false,rolling:false,cookie:config.cookie}))
+  // Public assets should not read authenticated sessions; HTTPS enforcement stays first.
   app.use(express.static('public'))
+  app.use(session({store:owner.store,secret:config.secrets,name:config.cookieName,resave:false,saveUninitialized:false,rolling:false,cookie:config.cookie}))
   app.use('/api/products',productsRouter)
   app.use(['/api/auth/me','/api/cart'],sessionValidity(config))
   app.use('/api/auth/me',meRouter)

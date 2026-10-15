@@ -57,7 +57,7 @@ export async function updateCartIcon() {
 }
 
 export async function loadCart(dom) {
-  const { checkoutBtn, userMessage, cartList, cartTotal } = dom
+  const { checkoutBtn, cartList, cartTotal } = dom
 
   try {
     const items = await fetchCartItems(dom)

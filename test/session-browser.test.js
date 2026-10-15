@@ -44,6 +44,9 @@ test('Chromium enforces production cookies and POST logout with actual frontend 
  const httpPage=await context.newPage()
  const httpOrigin=`http://vinyl.test:${new URL(child.baseUrl).port}`
  const observed=httpPage.waitForRequest(httpOrigin+'/api/auth/me')
+ const blockedAsset=await child.request('/css/index.css')
+ assert.equal(blockedAsset.status,400)
+ assert.deepEqual(blockedAsset.body,{error:'HTTPS required'})
  const response=await httpPage.goto(httpOrigin+'/api/auth/me')
  const sent=(await (await observed).allHeaders()).cookie
  assert.equal(response.status(),400);assert.equal(sent,undefined)

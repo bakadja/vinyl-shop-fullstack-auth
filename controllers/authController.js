@@ -1,6 +1,6 @@
 import { invalidateSession } from '../sessions/policy.js'
 import { establishSession } from '../sessions/authentication.js'
-import validator from 'validator'
+import isEmail from 'validator/lib/isEmail.js'
 import { getDatabase } from '../db/db.js'
 import bcrypt from 'bcryptjs'
 
@@ -25,7 +25,7 @@ export async function registerUser(req, res) {
     )
   }
 
-  if (!validator.isEmail(email)) {
+  if (!isEmail(email)) {
 
     return res.status(400).json({ error: 'Invalid email format' })
 

@@ -11,7 +11,7 @@ export async function fixture(t) {
   let child
   // Register child shutdown before schema cleanup: node:test runs after hooks in order.
   t.after(async () => {
-    if (child && child.exitCode === null && child.signalCode === null) {
+    if (child?.exitCode === null && child.signalCode === null) {
       const exited = once(child, 'exit')
       child.kill('SIGTERM')
       const timer = setTimeout(() => child.kill('SIGKILL'), 3000)
@@ -45,7 +45,7 @@ export async function fixture(t) {
     child.stderr.on('data', chunk => { output = (output + chunk).slice(-8192) })
     child.stdout.on('data', chunk => {
       output = (output + chunk).slice(-8192)
-      const match = output.match(/Server running at http:\/\/localhost:(\d+)/)
+      const match = /Server running at http:\/\/localhost:(\d+)/.exec(output)
       if (match) {
         const port = Number(match[1])
         if (port === 8000 || port === 0) {
@@ -75,7 +75,7 @@ export async function fixture(t) {
       return { status: response.status, body: text ? JSON.parse(text) : null, cookie: setCookie }
     }
   }
-  return { client, directory, database, schema, childEnv,
+  return { baseUrl, client, directory, database, schema, childEnv,
     shutdown: () => { const exited = once(child, 'exit'); child.kill('SIGTERM'); return exited } }
 }
 
