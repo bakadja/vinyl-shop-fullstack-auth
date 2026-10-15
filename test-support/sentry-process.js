@@ -21,6 +21,7 @@ else if (mode === 'uncaught') setImmediate(() => { throw dirty() })
 else if (mode === 'rejection') setImmediate(() => { void Promise.reject(dirty()) })
 else {
   const app = express()
+  app.disable('x-powered-by')
   app.use(requestTelemetry)
   app.use(express.json())
   app.all('/failure', (_req, _res, next) => next(dirty()))
@@ -29,10 +30,10 @@ else {
   app.use((err, _req, res, _next) => res.status(500).json({ error: 'Internal server error' }))
   const server = app.listen(0, '127.0.0.1', async () => {
     const origin = `http://127.0.0.1:${server.address().port}`
-    for (const status of [400, 401, 403, 429]) {
+    await Promise.all([400, 401, 403, 429].map(async status => {
       await fetch(`${origin}/expected/${status}`)
       Sentry.captureException(Object.assign(dirty(), { status }))
-    }
+    }))
     // SDK APIs and attachments must still pass the wire-level allowlist.
     if (mode === 'hostile') {
       Sentry.getCurrentScope().addAttachment({ filename: marker, data: marker })
@@ -52,6 +53,7 @@ else {
         'content-type': 'application/json', cookie: marker, authorization: marker,
         'sentry-trace': 'a'.repeat(32) + '-' + 'b'.repeat(16) + '-1', baggage: `sentry-user_id=${marker}`
       }, body: JSON.stringify({ password: marker, email: marker }) })
+      if (response.headers.has('x-powered-by')) throw new Error('Unexpected framework disclosure')
       if (response.status !== 500 || (await response.json()).error !== 'Internal server error') throw new Error('Response changed')
       const caught = await fetch(`${origin}/caught`)
       if (caught.status !== 500) throw new Error('Response changed')

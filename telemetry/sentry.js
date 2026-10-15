@@ -15,7 +15,7 @@ export function telemetryConfig(env = process.env) {
     const release = env.SENTRY_RELEASE
     const localTest = environment === 'test' && dsn.hostname === '127.0.0.1'
     if ((!localTest && dsn.protocol !== 'https:') || !['http:', 'https:'].includes(dsn.protocol) ||
-        !/^[a-zA-Z0-9]+$/.test(dsn.username) || dsn.password || !/^\/[0-9]+$/.test(dsn.pathname) ||
+        !/^[a-zA-Z0-9]+$/.test(dsn.username) || dsn.password || !/^\/\d+$/.test(dsn.pathname) ||
         dsn.search || dsn.hash || !environments.has(environment) || !/^[a-f0-9]{40}$/.test(release ?? '')) return null
     return { dsn: dsn.href, environment, release }
   } catch { return null }
