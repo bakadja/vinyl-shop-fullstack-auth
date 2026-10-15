@@ -1,9 +1,10 @@
+import { captureFailure } from '../telemetry/sentry.js'
 import pg from 'pg'
 import { databaseConfig } from './config.js'
 
 export function createDatabase(config) {
   const pool = new pg.Pool(config)
-  pool.on('error', () => console.error('PostgreSQL idle connection failed'))
+  pool.on('error', () => { captureFailure('database_idle'); console.error('PostgreSQL idle connection failed') })
   return {
     getPool: () => pool,
     query: (text, values = []) => pool.query(text, values),

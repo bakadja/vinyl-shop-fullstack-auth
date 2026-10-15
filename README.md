@@ -265,3 +265,10 @@ For questions or support, please open an issue on GitHub.
  
 
 See [secure persistent sessions](docs/secure-sessions.md) for the breaking POST-only logout contract, explicit session initialization, secrets/rotation, cookie policy, verified-TLS security tests and the unverified Azure proxy deployment boundary.
+
+### Backend error monitoring
+
+Sentry error monitoring is optional and backend-only. See [Sentry configuration,
+privacy policy and controlled acceptance probe](docs/sentry-backend.md) before
+supplying a DSN. Real ingestion remains blocked pending the owner quota/privacy
+review; no Azure readiness gate is opened by this integration.

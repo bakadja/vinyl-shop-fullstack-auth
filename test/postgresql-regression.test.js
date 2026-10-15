@@ -185,6 +185,7 @@ test('npm start accepts environment-only configuration and serves PostgreSQL cat
   const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
   await writeFile(join(isolated.directory, 'package.json'), JSON.stringify(packageJson))
   await symlink(fileURLToPath(new URL('../server.js', import.meta.url)), join(isolated.directory, 'server.js'))
+  await symlink(fileURLToPath(new URL('../instrument.js', import.meta.url)), join(isolated.directory, 'instrument.js'))
   child = spawn('npm', ['start'], { detached: true, cwd: isolated.directory, env: { ...isolated.childEnv, PORT: '0', PATH: process.env.PATH, SPIRAL_SESSION_SECRET: randomBytes(32).toString('hex') }, stdio: ['ignore', 'pipe', 'pipe'] })
   const baseUrl = await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('npm start timed out')), 10000)

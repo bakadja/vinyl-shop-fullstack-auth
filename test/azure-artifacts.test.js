@@ -13,18 +13,21 @@ const root = new URL('../', import.meta.url)
 test('runtime package uses an allowlist and refuses nested secrets and symlinks', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'vinyl-package-')); t.after(() => rm(directory, { recursive: true, force: true }))
   const source = join(directory, 'source'); await mkdir(source)
-  for (const name of ['controllers', 'middleware', 'routes', 'sessions', 'public', 'db', 'certificates']) await mkdir(join(source, name))
-  for (const file of ['package.json', 'package-lock.json', 'server.js', 'db/config.js', 'db/db.js', 'db/values.js', 'certificates/azure-postgresql-roots.pem', 'public/index.html']) await writeFile(join(source, file), '{}')
+  for (const name of ['controllers', 'middleware', 'routes', 'sessions', 'telemetry', 'public', 'db', 'certificates']) await mkdir(join(source, name))
+  for (const file of ['package.json', 'package-lock.json', 'server.js', 'instrument.js', 'telemetry/sentry.js', 'db/config.js', 'db/db.js', 'db/values.js', 'certificates/azure-postgresql-roots.pem', 'public/index.html']) await writeFile(join(source, file), '{}')
   await writeFile(join(source, '.env'), 'synthetic-only')
   await mkdir(join(source, 'test')); await writeFile(join(source, 'test/private.js'), 'test')
-  const out = join(directory, 'runtime'); await assembleRuntime(source, out)
+  await assert.rejects(assembleRuntime(source, join(directory, 'invalid-release'), { release: 'invalid' }), /Invalid runtime release SHA/)
+  const out = join(directory, 'runtime'); await assembleRuntime(source, out, { release: 'd'.repeat(40) })
   assert.equal(await readFile(join(out, 'public/index.html'), 'utf8'), '{}')
+  await access(join(out, 'telemetry/sentry.js')); await access(join(out, 'instrument.js'))
+  assert.deepEqual(JSON.parse(await readFile(join(out, 'release.json'), 'utf8')), { release: 'd'.repeat(40) })
   await assert.rejects(access(join(out, '.env')))
   await assert.rejects(access(join(out, 'test')))
   await writeFile(join(source, 'public/.env'), 'synthetic-only')
-  await assert.rejects(assembleRuntime(source, join(directory, 'bad')), /Unsafe runtime artifact/)
+  await assert.rejects(assembleRuntime(source, join(directory, 'bad'), { release: 'd'.repeat(40) }), /Unsafe runtime artifact/)
   await rm(join(source, 'public/.env')); await symlink(join(source, '.env'), join(source, 'public/link.js'))
-  await assert.rejects(assembleRuntime(source, join(directory, 'linked')), /Unsafe runtime artifact/)
+  await assert.rejects(assembleRuntime(source, join(directory, 'linked'), { release: 'd'.repeat(40) }), /Unsafe runtime artifact/)
 })
 
 test('committed public CA bundle contains the two documented self-signed roots', async () => {
@@ -53,10 +56,10 @@ test('compiled ARM policy rejects TLS, networking, cost and credential regressio
   const template = { parameters: { adminPassword: { type: 'securestring' } }, resources: [
     { type: 'Microsoft.Web/serverfarms', sku: { name: 'B1', capacity: 1 }, properties: { reserved: true } },
     { type: 'Microsoft.Web/sites', identity: { type: 'SystemAssigned' }, properties: { httpsOnly: true, virtualNetworkSubnetId: 'subnet-id', clientAffinityEnabled: false, siteConfig: {
-      minTlsVersion: '1.2', scmMinTlsVersion: '1.2', linuxFxVersion: 'NODE|24-lts', ftpsState: 'Disabled', healthCheckPath: '/health/ready', appSettings: [
-        { name: 'NODE_ENV', value: 'production' }, { name: 'PGSSLMODE', value: 'verify-full' }, { name: 'SESSION_PROXY_MODE', value: 'verified-proxy' },
+      minTlsVersion: '1.2', scmMinTlsVersion: '1.2', linuxFxVersion: 'NODE|24-lts', appCommandLine: 'node --import ./instrument.js server.js', ftpsState: 'Disabled', healthCheckPath: '/health/ready', appSettings: [
+        { name: 'NODE_ENV', value: 'production' }, { name: 'SENTRY_ENVIRONMENT', value: 'production' }, { name: 'PGSSLMODE', value: 'verify-full' }, { name: 'SESSION_PROXY_MODE', value: 'verified-proxy' },
         { name: 'PGSSLROOTCERT', value: '/home/site/wwwroot/certificates/azure-postgresql-roots.pem' }, { name: 'SCM_DO_BUILD_DURING_DEPLOYMENT', value: 'false' }, { name: 'WEBSITE_RUN_FROM_PACKAGE', value: '1' },
-        ...['PGPASSWORD', 'SPIRAL_SESSION_SECRET', 'SPIRAL_SESSION_PREVIOUS_SECRETS', 'AUTH_ABUSE_HMAC_KEY'].map(name => ({ name, value: '@Microsoft.KeyVault(SecretUri=https://vault.example/secrets/name)' }))
+        ...['PGPASSWORD', 'SPIRAL_SESSION_SECRET', 'SPIRAL_SESSION_PREVIOUS_SECRETS', 'AUTH_ABUSE_HMAC_KEY', 'SENTRY_DSN'].map(name => ({ name, value: '@Microsoft.KeyVault(SecretUri=https://vault.example/secrets/name)' }))
       ] } } },
     { type: 'Microsoft.DBforPostgreSQL/flexibleServers', sku: { name: 'Standard_B1ms', tier: 'Burstable' }, properties: { version: '17', storage: { storageSizeGB: 32, autoGrow: 'Disabled' }, network: { publicNetworkAccess: 'Disabled', delegatedSubnetResourceId: 'db-subnet-id', privateDnsZoneArmResourceId: 'dns-id' }, backup: { backupRetentionDays: 7 } } },
     { type: 'Microsoft.DBforPostgreSQL/flexibleServers/configurations', properties: { value: 'on' } },

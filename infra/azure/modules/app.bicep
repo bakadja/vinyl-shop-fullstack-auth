@@ -47,7 +47,7 @@ resource app 'Microsoft.Web/sites@2023-12-01' = {
     vnetRouteAllEnabled: true
     siteConfig: {
       linuxFxVersion: 'NODE|24-lts'
-      appCommandLine: 'node server.js'
+      appCommandLine: 'node --import ./instrument.js server.js'
       alwaysOn: true
       http20Enabled: true
       ftpsState: 'Disabled'
@@ -56,6 +56,8 @@ resource app 'Microsoft.Web/sites@2023-12-01' = {
       healthCheckPath: '/health/ready'
       appSettings: [
         { name: 'NODE_ENV', value: 'production' }
+        { name: 'SENTRY_ENVIRONMENT', value: 'production' }
+        { name: 'SENTRY_DSN', value: '@Microsoft.KeyVault(SecretUri=${vault.properties.vaultUri}secrets/sentry-dsn)' }
         { name: 'PUBLIC_ORIGIN', value: publicOrigin }
         { name: 'SESSION_PROXY_MODE', value: 'verified-proxy' }
         { name: 'TRUSTED_PROXY_CIDRS', value: trustedProxyCidrs }
