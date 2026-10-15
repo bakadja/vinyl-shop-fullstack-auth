@@ -100,7 +100,7 @@ export function initializeTelemetry(env = process.env) {
         databaseQueryData: false, stackFrameVariables: false, frameContextLines: 0,
         graphQL: { document: false, variables: false }, genAI: { inputs: false, outputs: false }, queues: false },
       beforeBreadcrumb: () => null, beforeSendLog: () => null, beforeSendMetric: () => null,
-      beforeSendTransaction: () => null, beforeSendSpan: () => null, beforeSend: (event, hint) => filterEvent(event, hint, config),
+      beforeSendTransaction: () => null, beforeSend: (event, hint) => filterEvent(event, hint, config),
       transport: options => privateTransport(options, config)
     })
     // SDK fatal handlers can print raw errors on secondary failures: own both paths.
