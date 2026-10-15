@@ -1,3 +1,4 @@
+import { initializeAbuse } from '../sessions/abuse-schema.js'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
@@ -20,7 +21,7 @@ export async function fixture(t) {
   })
   const { database, schema, directory, childEnv } = await postgresFixture(t)
   await initializeDatabase(database)
-  await initializeSessions(database)
+  await initializeSessions(database);await initializeAbuse(database)
   child = spawn(process.execPath, [fileURLToPath(new URL('../server.js', import.meta.url))], {
     cwd: directory,
     env: { ...childEnv, PORT: '0', SPIRAL_SESSION_SECRET: randomBytes(32).toString('hex') },

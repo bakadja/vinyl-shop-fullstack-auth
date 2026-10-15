@@ -7,6 +7,8 @@ import { meRouter } from './routes/me.js'
 import { cartRouter } from './routes/cart.js'
 import { healthRouter } from './routes/health.js'
 import session from 'express-session'
+import { abuseKey, authenticationAbuse } from './sessions/abuse.js'
+import { validateAbuseSchema } from './sessions/abuse-schema.js'
 import { sessionConfig } from './sessions/config.js'
 import { validateSessionSchema } from './sessions/schema.js'
 import { createSessionStore } from './sessions/store.js'
@@ -36,8 +38,10 @@ function shutdown() {
 }
 try {
   const config=sessionConfig()
+  const key=abuseKey()
   const db=getDatabase()
   await validateSessionSchema(db)
+  await validateAbuseSchema(db)
   owner=createSessionStore({pool:db.getPool(),config})
   const app=express()
   app.disable('x-powered-by')
@@ -48,6 +52,7 @@ try {
   app.use('/api/auth',(req,res,next)=>{res.set('Cache-Control','no-store');next()})
   app.use('/api/auth/logout',logoutMethodGuard)
   app.use(express.json())
+  app.use('/api/auth',authenticationAbuse(db,key))
   // Public assets should not read authenticated sessions; HTTPS enforcement stays first.
   app.get('/favicon.ico', (_req, res) => {
     res.sendFile(fileURLToPath(new URL('./public/images/spiral_logo.png', import.meta.url)))

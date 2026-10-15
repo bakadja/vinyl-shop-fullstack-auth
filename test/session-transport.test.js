@@ -1,3 +1,4 @@
+import { initializeAbuse } from '../sessions/abuse-schema.js'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { spawnSync } from 'node:child_process'
@@ -20,7 +21,7 @@ test('startup rejects missing/weak session configuration before listening withou
 test('production verifies DB TLS and rejects spoofed or ambiguous protocol before session writes', async t => {
   const hooks=[]; t.after(async()=>{for(const hook of hooks) await hook()})
   const f=await postgresFixture(t)
-  await initializeDatabase(f.database); await initializeSessions(f.database)
+  await initializeDatabase(f.database); await initializeSessions(f.database);await initializeAbuse(f.database)
   assert.ok(process.env.TEST_DATABASE_CA_FILE,'Verified test CA must be provisioned')
   const overrides={NODE_ENV:'production',PGSSLMODE:'verify-full',PGSSLROOTCERT:process.env.TEST_DATABASE_CA_FILE,SESSION_PROXY_MODE:'verified-proxy',TRUSTED_PROXY_CIDRS:'127.0.0.1/32',PUBLIC_ORIGIN:'https://shop.example'}
   const child=await startSessionProcess({after:fn=>hooks.push(fn)},{childEnv:f.childEnv,cwd:f.directory,overrides})

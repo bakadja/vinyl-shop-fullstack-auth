@@ -3,6 +3,10 @@ import { establishSession } from '../sessions/authentication.js'
 import isEmail from 'validator/lib/isEmail.js'
 import { getDatabase } from '../db/db.js'
 import bcrypt from 'bcryptjs'
+import { randomBytes } from 'node:crypto'
+
+const dummyPasswordHash = bcrypt.hashSync(randomBytes(32).toString('hex'), 10)
+const bounded = (value, bytes) => typeof value === 'string' && Buffer.byteLength(value, 'utf8') <= bytes
 
 export async function registerUser(req, res) {
 
@@ -12,6 +16,11 @@ export async function registerUser(req, res) {
 
     return res.status(400).json({ error: 'All fields are required.' })
 
+  }
+
+  // bcrypt accepts only the first 72 UTF-8 bytes; new registrations must not silently truncate.
+  if (!bounded(name, 1024) || !bounded(email, 254) || !bounded(password, 72)) {
+    return res.status(400).json({ error: 'Registration fields exceed supported size limits.' })
   }
 
   name = name.trim()
@@ -66,6 +75,10 @@ export async function loginUser(req, res) {
     return res.status(400).json({ error: 'All fields are required' } )
   }
 
+  if (!bounded(username, 1024) || !bounded(password, 8192)) {
+    return res.status(400).json({ error: 'Login fields exceed supported size limits.' })
+  }
+
   username = username.trim()
 
   try {
@@ -73,13 +86,9 @@ export async function loginUser(req, res) {
 
     const user = (await db.query('SELECT * FROM users WHERE username = $1', [username])).rows[0]
 
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials'})
-    }
+    const isValid = await bcrypt.compare(password, user?.password ?? dummyPasswordHash)
 
-    const isValid = await bcrypt.compare(password, user.password)
-
-    if (!isValid) {
+    if (!user || !isValid) {
 
       return res.status(401).json({ error: 'Invalid credentials'})
 

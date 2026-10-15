@@ -56,7 +56,7 @@ test('compiled ARM policy rejects TLS, networking, cost and credential regressio
       minTlsVersion: '1.2', scmMinTlsVersion: '1.2', linuxFxVersion: 'NODE|24-lts', ftpsState: 'Disabled', healthCheckPath: '/health/ready', appSettings: [
         { name: 'NODE_ENV', value: 'production' }, { name: 'PGSSLMODE', value: 'verify-full' }, { name: 'SESSION_PROXY_MODE', value: 'verified-proxy' },
         { name: 'PGSSLROOTCERT', value: '/home/site/wwwroot/certificates/azure-postgresql-roots.pem' }, { name: 'SCM_DO_BUILD_DURING_DEPLOYMENT', value: 'false' }, { name: 'WEBSITE_RUN_FROM_PACKAGE', value: '1' },
-        ...['PGPASSWORD', 'SPIRAL_SESSION_SECRET', 'SPIRAL_SESSION_PREVIOUS_SECRETS'].map(name => ({ name, value: '@Microsoft.KeyVault(SecretUri=https://vault.example/secrets/name)' }))
+        ...['PGPASSWORD', 'SPIRAL_SESSION_SECRET', 'SPIRAL_SESSION_PREVIOUS_SECRETS', 'AUTH_ABUSE_HMAC_KEY'].map(name => ({ name, value: '@Microsoft.KeyVault(SecretUri=https://vault.example/secrets/name)' }))
       ] } } },
     { type: 'Microsoft.DBforPostgreSQL/flexibleServers', sku: { name: 'Standard_B1ms', tier: 'Burstable' }, properties: { version: '17', storage: { storageSizeGB: 32, autoGrow: 'Disabled' }, network: { publicNetworkAccess: 'Disabled', delegatedSubnetResourceId: 'db-subnet-id', privateDnsZoneArmResourceId: 'dns-id' }, backup: { backupRetentionDays: 7 } } },
     { type: 'Microsoft.DBforPostgreSQL/flexibleServers/configurations', properties: { value: 'on' } },

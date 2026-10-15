@@ -1,3 +1,4 @@
+import { initializeAbuse } from '../sessions/abuse-schema.js'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import express from 'express'
@@ -46,7 +47,7 @@ test('readiness bounds the DB query and sanitizes failures while liveness stays 
 test('production health never bypasses trusted-peer HTTPS enforcement', async t => {
   const hooks = []; t.after(async () => { for (const hook of hooks) await hook() })
   const f = await postgresFixture(t)
-  await initializeDatabase(f.database); await initializeSessions(f.database)
+  await initializeDatabase(f.database); await initializeSessions(f.database);await initializeAbuse(f.database)
   const overrides = { NODE_ENV: 'production', PGSSLMODE: 'verify-full', PGSSLROOTCERT: process.env.TEST_DATABASE_CA_FILE,
     SESSION_PROXY_MODE: 'verified-proxy', TRUSTED_PROXY_CIDRS: '127.0.0.1/32', PUBLIC_ORIGIN: 'https://shop.example' }
   const child = await startSessionProcess({ after: fn => hooks.push(fn) }, { childEnv: f.childEnv, cwd: f.directory, overrides })
