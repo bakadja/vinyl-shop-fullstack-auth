@@ -21,7 +21,7 @@ export async function startTlsProxy(t, { targetUrl, certificates, overwriteProto
   const server = https.createServer({ key: await readFile(certificates.serverKeyFile), cert: await readFile(certificates.serverCertFile) }, (req, res) => {
     const headers = { ...req.headers }
     if (overwriteProtocol) { headers['x-forwarded-proto'] = 'https'; delete headers['x-forwarded-host']; delete headers['x-forwarded-for'] }
-    const upstream = http.request(new URL(req.url, targetUrl), { method: req.method, headers }, response => {
+    const upstream = http.request(new URL(req.url, typeof targetUrl === 'function' ? targetUrl() : targetUrl), { method: req.method, headers }, response => {
       res.writeHead(response.statusCode, response.headers); response.pipe(res)
     })
     upstream.on('error', () => { res.writeHead(502); res.end() })
