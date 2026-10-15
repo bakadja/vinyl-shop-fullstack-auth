@@ -13,9 +13,9 @@ param verificationKeysName string
 resource plan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: '${name}-plan'
   location: location
-  tags: tags
-  kind: 'linux'
   sku: { name: 'B1', tier: 'Basic', capacity: 1 }
+  kind: 'linux'
+  tags: tags
   properties: { reserved: true }
 }
 resource vault 'Microsoft.KeyVault/vaults@2023-07-01' = {
@@ -30,15 +30,15 @@ resource vault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     softDeleteRetentionInDays: 7
     enablePurgeProtection: true
     publicNetworkAccess: 'Enabled'
-    networkAcls: { bypass: 'None', defaultAction: 'Deny', ipRules: [], virtualNetworkRules: [{ id: subnetId }] }
+    networkAcls: { bypass: 'None', defaultAction: 'Deny', virtualNetworkRules: [{ id: subnetId }] }
   }
 }
 resource app 'Microsoft.Web/sites@2023-12-01' = {
   name: name
   location: location
-  tags: tags
   kind: 'app,linux'
   identity: { type: 'SystemAssigned' }
+  tags: tags
   properties: {
     serverFarmId: plan.id
     httpsOnly: true

@@ -49,3 +49,5 @@ Files: .github/workflows/azure-validate.yml, .github/workflows/azure-deploy.yml,
 ## Local execution record
 
 160/160 complete isolated PostgreSQL/Chromium tests passed. Fresh npm ci, full/production audit: zero vulnerabilities. Bicep build/lint, compiled ARM/security checks, actionlint and all changed-file secrets scans passed. Runtime assembly and locked production dependency installation passed. Independent review corrections are documented in docs/azure-deployment.md. Remote checks remain pending at local commit time. No Azure or GitHub protection mutation occurred.
+
+Remote first PR run: Linux/macOS 160/160 and Azure validation passed; Sonar Quality Gate failed. Concrete corrections and security regression tests were added; follow-up local suite 161/161 passes. Native App Service auth / unused PostgreSQL identity findings remain architecture review blockers. No Sonar rule or issue state was modified.

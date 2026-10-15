@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { spawnSync } from 'node:child_process'
-import { readFile, mkdtemp, writeFile, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { readGitHubSnapshot } from '../scripts/azure/check-github.js'
 import { assertReadiness, assertGitHubDeployment, assertConfiguration } from '../scripts/azure/guards.js'
 const sha = 'a'.repeat(40)
 const gateNames = ['proxy', 'abuseProtection', 'subscriptionQuotas', 'costApproval', 'bootstrap', 'restoreDrill']
@@ -60,8 +59,7 @@ test('readiness CLI fails with the expected closed-gate diagnostic rather than a
   assert.equal(result.stderr.trim(), 'Deployment blocked. See infra/azure/readiness.json and docs/azure-deployment.md.')
 })
 
-test('GitHub CLI guard assembles exact-commit evidence and rejects API failure without logging responses', async t => {
-  const directory = await mkdtemp(join(tmpdir(), 'vinyl-gh-stub-')); t.after(() => rm(directory, { recursive: true, force: true }))
+test('GitHub evidence loader uses fixed repository API paths and rejects untrusted context before requests', async () => {
   const s = snapshot(), base = 'repos/bakadja/vinyl-shop-fullstack-auth'
   const responses = {
     [`${base}/git/ref/heads/main`]: { object: { sha } },
@@ -70,15 +68,15 @@ test('GitHub CLI guard assembles exact-commit evidence and rejects API failure w
     [`${base}/actions/runs?head_sha=${sha}&event=push&per_page=100`]: { workflow_runs: s.runs },
     [`${base}/commits/${sha}/check-runs?per_page=100`]: { check_runs: s.checks }
   }
-  await writeFile(join(directory, 'gh'), `#!${process.execPath}\nconst data=JSON.parse(process.env.VINYL_GH_RESPONSES); const value=data[process.argv[3]]; if(process.argv[2]!=='api'||!value) { console.error('synthetic-private-api-detail'); process.exit(1) } process.stdout.write(JSON.stringify(value));\n`, { mode: 0o700 })
-  const env = { PATH: directory, GITHUB_REPOSITORY: s.repository, GITHUB_REF: s.ref, GITHUB_SHA: sha, VINYL_GH_RESPONSES: JSON.stringify(responses) }
+  const requested = []
+  const loaded = await readGitHubSnapshot({ repository: s.repository, sha, ref: s.ref }, async path => {
+    requested.push(path); assert.ok(Object.hasOwn(responses, path)); return responses[path]
+  })
+  assert.equal(requested.length, 5); assert.deepEqual(loaded, s)
+  await assert.rejects(readGitHubSnapshot({ repository: 'other/repo', sha, ref: s.ref }, () => { throw new Error('Must not request') }), /Invalid target/)
+  await assert.rejects(readGitHubSnapshot({ repository: s.repository, sha: '../invalid', ref: s.ref }, () => { throw new Error('Must not request') }), /Invalid target/)
   const script = new URL('../scripts/azure/check-github.js', import.meta.url).pathname
-  const success = spawnSync(process.execPath, [script], { env, encoding: 'utf8' })
-  assert.equal(success.status, 0); assert.equal(success.stderr, '')
-  assert.match(success.stdout, /GitHub main, CI, Sonar and mandatory environment review verified/)
-  const failed = spawnSync(process.execPath, [script], { env: { ...env, VINYL_GH_RESPONSES: '{}' }, encoding: 'utf8' })
-  assert.equal(failed.status, 1); assert.equal(failed.stdout, '')
-  assert.equal(failed.stderr.trim(), 'Deployment blocked: GitHub policy or exact-commit checks could not be verified')
-  const badInput = spawnSync(process.execPath, [script], { env: { ...env, GITHUB_SHA: 'invalid' }, encoding: 'utf8' })
-  assert.equal(badInput.status, 1); assert.doesNotMatch(badInput.stderr, /synthetic-private-api-detail/)
+  const result = spawnSync(process.execPath, [script], { env: { GITHUB_REPOSITORY: s.repository, GITHUB_SHA: sha }, encoding: 'utf8' })
+  assert.equal(result.status, 1); assert.equal(result.stdout, '')
+  assert.equal(result.stderr.trim(), 'Deployment blocked: GitHub policy or exact-commit checks could not be verified')
 })

@@ -9,8 +9,8 @@ param adminPassword string
 resource server 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
   name: name
   location: location
-  tags: tags
   sku: { name: 'Standard_B1ms', tier: 'Burstable' }
+  tags: tags
   properties: {
     version: '17'
     administratorLogin: adminUser

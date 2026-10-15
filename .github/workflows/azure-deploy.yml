@@ -46,12 +46,12 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
-      - name: Assemble runtime allowlist outside checkout
-        run: node scripts/azure/package.js "$RUNNER_TEMP/runtime"
+      - name: Assemble runtime allowlist in ignored build directory
+        run: node scripts/azure/package.js
       - name: Install locked runtime dependencies without lifecycle scripts
-        run: npm ci --omit=dev --ignore-scripts --prefix "$RUNNER_TEMP/runtime"
+        run: npm ci --omit=dev --ignore-scripts --prefix .cache/azure-runtime
       - name: Package exact commit without rebuilding on Azure
-        working-directory: ${{ runner.temp }}/runtime
+        working-directory: ${{ github.workspace }}/.cache/azure-runtime
         run: |
           zip -qr "$RUNNER_TEMP/runtime.zip" .
           cd "$RUNNER_TEMP"

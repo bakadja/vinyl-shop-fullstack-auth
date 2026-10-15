@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, access } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { spawnSync } from 'node:child_process'
 import { X509Certificate } from 'node:crypto'
 import { parse } from 'yaml'
 import { assembleRuntime } from '../scripts/azure/package.js'
@@ -72,5 +73,13 @@ test('compiled ARM policy rejects TLS, networking, cost and credential regressio
     t => t.resources[3].properties.value = 'off', t => t.resources[4].properties.networkAcls.defaultAction = 'Allow',
     t => t.resources[5].properties.allow = true, t => t.resources[7].properties.subject = 'repo:bakadja/vinyl-shop-fullstack-auth:ref:refs/heads/main', t => t.resources[8].scope = '/subscriptions/subscription', t => t.resources[8].properties.roleDefinitionId = 'Owner']) {
     const bad = structuredClone(template); mutate(bad); assert.throws(() => validateTemplate(bad), /Unsafe Azure template/)
+  }
+})
+
+test('build and validation CLIs refuse arbitrary filesystem arguments', () => {
+  for (const file of ['package.js', 'validate.js']) {
+    const result = spawnSync(process.execPath, [new URL(`../scripts/azure/${file}`, import.meta.url).pathname, '/outside/allowed/workspace'], { encoding: 'utf8' })
+    assert.equal(result.status, 1)
+    assert.doesNotMatch(result.stderr, /outside\/allowed/)
   }
 })

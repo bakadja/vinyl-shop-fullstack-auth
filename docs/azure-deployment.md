@@ -90,9 +90,10 @@ npm ci --ignore-scripts
 npm audit --audit-level=high
 # Existing helper creates a new fictional PostgreSQL cluster and never uses development data.
 PG_TEST_BIN=/path/to/postgresql17/bin bash scripts/start-test-postgres.sh npm test
-bicep build infra/azure/main.bicep --outfile /tmp/vinyl-azure-template.json
+mkdir -p .cache
+bicep build infra/azure/main.bicep --outfile .cache/azure-template.json
 bicep lint infra/azure/main.bicep
-node scripts/azure/validate.js /tmp/vinyl-azure-template.json
+node scripts/azure/validate.js
 actionlint
 ```
 
@@ -161,3 +162,16 @@ Local macOS / Node 24.21.0 / PostgreSQL 17.11 / real Chromium: fresh npm ci --ig
 Two independent-review findings were corrected and regression-tested: require exact-commit Azure validation alongside API tests/Sonar; install locked guard dependencies on fresh deployment runners and distinguish the expected closed gate from loader errors. Final review found no remaining important defect by inspection. Local proxy and HTTPS smoke tests use fictional data and disposable certificates; they do not establish Azure compatibility. Shell sandbox restrictions were handled with writable temporary caches and authorized local ephemeral-test execution, without changing application protections.
 
 The existing sessions/config.js, sessions/transport.js, db/config.js, db/init.sql, sonar-project.properties and API test workflow remain byte-identical to origin/main. No Azure commands, provisioning, deployment, paid operations or GitHub protection changes were performed. Remote PR checks are reported in the PR after execution and are not inferred from this local record.
+
+## SonarCloud architecture findings requiring owner review
+
+Initial PR analysis passed test/coverage execution but rejected its Quality Gate. Concrete implementation corrections address checked CLI filesystem boundaries, fixed-host GitHub HTTPS API calls instead of PATH-resolved commands, HTTPS-only download redirects, alphabetical comparison and resource formatting. Build/validation CLIs now accept no path arguments and use only the ignored `.cache` build directory; runtime assembly still validates its allowlist and rejects symlinks. The updated analysis result is recorded on the PR, not assumed from local checks.
+
+Two initial findings cannot be resolved by a behavior-preserving code change within the approved design:
+
+- **azureresourcemanager:S6380, app.bicep**: requires native App Service authsettingsV2 with platform authentication and requireAuthentication. Enabling it would reject anonymous catalogue/login/registration traffic before Express and alter the application's authentication contract. Existing application authorization and session protections remain in force. A separate owner-approved design, or an authorized context-specific Sonar assessment, is required; no rule suppression or issue-state change is made here.
+- **azureresourcemanager:S6378, database.bicep**: flags absence of PostgreSQL server managed identity. No customer-managed encryption key, Storage/Fabric or other outbound Azure integration is configured. The application's Key Vault-backed runtime password and verified TLS do not become managed-identity database authentication by assigning an unused identity to the server. Do not add unused permissions/identities merely to satisfy analysis. An authorized reviewer must assess applicability or approve a real identity-based integration separately.
+
+Both remain review blockers. The Draft PR must not be called Sonar-green, merged or deployed while its actual Quality Gate fails. Relevant official behavior: [App Service platform authentication](https://learn.microsoft.com/en-us/azure/app-service/overview-authentication-authorization), [PostgreSQL server identities](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-identity). No Sonar rules, exclusions, issue statuses or GitHub protections were changed.
+
+Follow-up local verification after the concrete Sonar corrections: **161/161** complete isolated PostgreSQL/Chromium tests passed, zero failures/skips; Bicep build/lint, compiled ARM validation, actionlint, revised fixed-path runtime assembly and production dependency audit passed. Independent review of these corrections found no new important defect. The two architecture findings remain open pending the next remote analysis and an authorized review.

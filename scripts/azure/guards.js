@@ -6,7 +6,7 @@ function evidenceURL(value) {
   try {
     const url = new URL(value)
     return url.protocol === 'https:' && url.hostname === 'github.com' && !url.port && !url.username && !url.password && !url.search && !url.hash &&
-      /^\/bakadja\/vinyl-shop-fullstack-auth\/(pull|issues)\/[1-9][0-9]*$/.test(url.pathname)
+      /^\/bakadja\/vinyl-shop-fullstack-auth\/(pull|issues)\/[1-9]\d*$/.test(url.pathname)
   } catch { return false }
 }
 export function assertReadiness(manifest) {

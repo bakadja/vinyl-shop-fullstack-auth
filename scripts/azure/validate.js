@@ -27,7 +27,7 @@ function validateDatabase(pg, secure) {
 }
 function validateVault(vault) {
   if (vault.properties.enableRbacAuthorization !== true || vault.properties.enablePurgeProtection !== true ||
-      vault.properties.networkAcls.defaultAction !== 'Deny' || vault.properties.networkAcls.bypass !== 'None' || vault.properties.networkAcls.ipRules.length !== 0 ||
+      vault.properties.networkAcls.defaultAction !== 'Deny' || vault.properties.networkAcls.bypass !== 'None' || (vault.properties.networkAcls.ipRules ?? []).length !== 0 ||
       vault.properties.networkAcls.virtualNetworkRules.length !== 1) templateError()
 }
 function validateIdentity(all) {
@@ -61,7 +61,7 @@ const workflowError = () => { throw new Error('Unsafe deployment workflow') }
 const hasRun = (job, command) => job?.steps?.some(step => step.run === command)
 export function validateWorkflow(workflow) {
   if (Object.keys(workflow.on ?? {}).join() !== 'workflow_dispatch' || workflow.permissions?.contents !== 'read' || Object.keys(workflow.permissions).length !== 1) workflowError()
-  if (Object.keys(workflow.jobs ?? {}).sort().join() !== 'build,deploy,preflight') workflowError()
+  if (Object.keys(workflow.jobs ?? {}).sort((a, b) => a.localeCompare(b)).join() !== 'build,deploy,preflight') workflowError()
   const { preflight, build, deploy } = workflow.jobs
   if (!hasRun(preflight, 'npm ci --omit=dev --ignore-scripts') || !hasRun(deploy, 'npm ci --omit=dev --ignore-scripts') || !hasRun(preflight, 'node scripts/azure/check-readiness.js') || !hasRun(preflight, 'node scripts/azure/check-github.js') ||
       !build.needs?.includes('preflight') || !deploy.needs?.includes('preflight') || !deploy.needs.includes('build') ||
@@ -74,8 +74,9 @@ export function validateWorkflow(workflow) {
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
+    if (process.argv.length !== 2) throw new Error('Arguments are not accepted')
     validateWorkflow(parse(await readFile('.github/workflows/azure-deploy.yml', 'utf8')))
-    validateTemplate(JSON.parse(await readFile(process.argv[2], 'utf8')))
+    validateTemplate(JSON.parse(await readFile(new URL('../../.cache/azure-template.json', import.meta.url), 'utf8')))
     console.log('Azure compiled template and delivery policy passed; this does not authorize deployment')
   } catch { console.error('Azure artifact validation failed'); process.exitCode = 1 }
 }
