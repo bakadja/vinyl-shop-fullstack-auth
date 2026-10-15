@@ -11,14 +11,23 @@ const dom = {
 
 document.getElementById('logout-btn').addEventListener('click', logout)
 
-dom.cartList.addEventListener('click', event => {
-  if (event.target.matches('.remove-btn')) {
-    removeItem(event.target.dataset.id, dom)
+dom.cartList.addEventListener('click', async event => {
+  if (!event.target.matches('.remove-btn')) return
+  try {
+    await removeItem(event.target.dataset.id, dom)
+  } catch (error) {
+    console.error('Unexpected cart removal error:', error)
+    dom.userMessage.textContent = 'Unable to remove item. Please try again.'
   }
 })
 
 dom.checkoutBtn.addEventListener('click', async () => {
-  await removeAll(dom)
+  try {
+    await removeAll(dom)
+  } catch (error) {
+    console.error('Unexpected cart clearing error:', error)
+    dom.userMessage.textContent = 'Unable to clear cart. Please try again.'
+  }
 })
 
 async function init() {
@@ -28,4 +37,9 @@ async function init() {
   showHideMenuItems(name)
 } 
  
-init()
+// Let cart actions remain responsive even while the first fetch is pending.
+void init().catch(error => {
+  console.error('Cart initialization failed:', error)
+  dom.userMessage.textContent = 'Unable to load cart data.'
+  dom.checkoutBtn.disabled = true
+})

@@ -18,24 +18,27 @@ async function init() {
   }
 }
 
-init()
+function reportSearchFailure(error) {
+  console.error('Search failed:', error)
+  document.getElementById('catalog-message').textContent = 'Unable to load products. Please try again.'
+}
 
+async function handleSearch(event) {
+  event.preventDefault()
+  try {
+    await applySearchFilter()
+  } catch (error) {
+    reportSearchFailure(error)
+  }
+}
 
-// ===== Event Listeners =====
+// Register listeners before loading data, so an early search is never lost.
+document.getElementById('search-input').addEventListener('input', handleSearch)
+document.querySelector('form').addEventListener('submit', handleSearch)
+document.getElementById('genre-select').addEventListener('change', handleSearch)
 
-document.getElementById('search-input').addEventListener('input', (e) => {
-  e.preventDefault()
-  applySearchFilter()
+// Do not block module evaluation: users may search while the initial request is pending.
+void init().catch(error => {
+  console.error('Catalogue initialization failed:', error)
+  document.getElementById('catalog-message').textContent = 'Unable to initialize the catalogue. Please try again.'
 })
-
-// prevent 'enter' from submitting
-document.getElementById('search-input').addEventListener('submit', (e) => {
-  e.preventDefault()
-})
-
-document.querySelector('form').addEventListener('submit', (e) => {
-  e.preventDefault()
-  applySearchFilter() 
-})
-
-document.getElementById('genre-select').addEventListener('change', applySearchFilter)
