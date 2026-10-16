@@ -18,14 +18,15 @@ function tools(config) {
   const container = process.env.PG_TEST_CONTAINER_ID
   if (container && !/^[a-f0-9]{12,64}$/.test(container)) throw new Error('Invalid disposable PostgreSQL container')
   if (!container && !process.env.PG_TEST_BIN) throw new Error('Explicit disposable PostgreSQL tools are required')
-  const env = { PATH: process.env.PATH, PGHOST: config.host, PGPORT: String(config.port), PGDATABASE: config.database,
+  const env = { PATH: '/usr/bin:/bin', PGHOST: config.host, PGPORT: String(config.port), PGDATABASE: config.database,
     PGUSER: config.user, PGPASSWORD: config.password, PGSSLMODE: 'disable' }
   return (tool, args, input) => {
     if (container) {
       // Reuse only the disposable CI PostgreSQL service's version-matched client.
       // Docker imports these variables from its environment; no password is an argument.
       const names = ['PGHOST', 'PGPORT', 'PGDATABASE', 'PGUSER', 'PGPASSWORD', 'PGSSLMODE']
-      return execFileSync('docker', ['exec', '-i', ...names.flatMap(name => ['--env', name]), container, tool, ...args],
+      const docker = process.platform === 'linux' ? '/usr/bin/docker' : '/opt/homebrew/bin/docker'
+      return execFileSync(docker, ['exec', '-i', ...names.flatMap(name => ['--env', name]), container, tool, ...args],
         { env: { ...env, PGHOST: '127.0.0.1', PGPORT: '5432' }, input, stdio: ['pipe', 'pipe', 'pipe'] })
     }
     return execFileSync(join(process.env.PG_TEST_BIN, tool), args, { env, input, stdio: ['pipe', 'pipe', 'pipe'] })

@@ -25,8 +25,8 @@ Outbound Key Vault routing drift; accidental HA/geo-backup/storage cost increase
 ## Task 3: Review and publication
 - [x] Full isolated suite, dependency audit, runtime assembly/install, secrets and workflow checks.
 - [x] Fresh independent whole-branch review; fix confirmed issues with regression tests.
-- [ ] Commit, push dedicated branch and create one Draft PR; attach it and inspect exact-head checks.
-- [ ] Report NO-GO with gate table and remaining owner actions; record unavailable checks truthfully.
+- [x] Commit, push dedicated branch and create one Draft PR; attach it and inspect exact-head checks.
+- [x] Report NO-GO with gate table and remaining owner actions; record unavailable checks truthfully.
 
 ## Execution record
 
@@ -37,3 +37,5 @@ Independent reviewer found no Critical/Important issue, independently passed art
 Sonar follow-up: first remote Quality Gate rejected 32.7% new-code coverage because the standalone restore drill was not included in LCOV. Added a real integration test and version-matched Docker service clients to Linux CI; no scanner/exclusion/threshold changes. Native and Docker restore paths passed. A local coverage invocation first lacked its output directory; created it and reran.
 
 Revised full coverage run: 188/188, zero skips/failures; overall line coverage 94.04%. Native and Docker restore integration paths independently pass. Final deterministic row ordering passed the focused restore test.
+
+Final security follow-up: Sonar reached 90.5% new-code coverage, then correctly flagged PATH-based Docker resolution. Invalid-PATH Docker regression reproduced ENOENT; fixed absolute client paths and fixed child PATH remove the dependency. Final full suite and remote outcome are recorded in the PR. Independent review of the added Docker/CI boundary found no Important issue; reviewer could not rerun cluster setup inside its restricted sandbox, so execution evidence remains separately attributed.
