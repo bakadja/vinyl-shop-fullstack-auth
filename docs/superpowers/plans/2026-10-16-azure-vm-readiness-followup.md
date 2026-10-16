@@ -36,7 +36,7 @@
 - [x] Add failing tests for trusted-loopback forwarding identity, malformed/duplicate/multi-hop rejection, and direct-peer spoof resistance.
 - [x] Make Caddy overwrite `X-Forwarded-For` from its direct socket peer; in Express accept one valid address only from the configured trusted loopback proxy. Preserve direct-mode socket identity and fail closed on missing or ambiguous proxy identity.
 - [x] Add/extend an isolated Caddy-to-Express test proving a client-supplied XFF cannot change identity and verify transport, cookies, health, and backend binding behavior.
-- [x] Run focused tests and the full isolated suite (195/195); update docs to state local evidence and Azure limitations.
+- [x] Run focused tests and the full isolated suite (196/196); update docs to state local evidence and Azure limitations.
 
 ### Task 2: Measure representative runtime behavior at 1 GiB
 
@@ -44,7 +44,7 @@
 
 - [x] Use an isolated PostgreSQL 17 fixture and app+Caddy containers capped at 768 MiB combined, reserving 256 MiB of the 1-GiB candidate budget for guest OS/agents.
 - [x] Record readiness/restart, registration/login, products/cart, concurrent reads/authentication, memory peaks, no-OOM result, and persisted recovery in the reproducible workload script and architecture assessment.
-- [x] State Docker/host/emulation and Azure guest/kernel/agent limitations; keep the 1-GiB candidate and abuse gates blocked pending Azure evidence and acceptance of observed 503 back-pressure.
+- [x] State Docker/host/emulation and Azure guest/kernel/agent limitations; keep the 1-GiB candidate and abuse gates blocked pending Azure evidence and investigation of the exploratory 24-way HTTP 500/503 overload result.
 
 ### Task 3: Audit Azure identity, database, cost and readiness evidence
 
@@ -56,7 +56,7 @@
 
 ### Task 4: Verify, update the existing PR and report
 
-- [x] Run focused/full PostgreSQL-backed regression (195/195), runtime workload, Azure artifact validation and secrets scans. Local actionlint is unavailable and npm audit could not reach registry.npmjs.org; exact-head remote checks remain required.
+- [x] Run focused/full PostgreSQL-backed regression (196/196), runtime workload, Azure artifact validation and secrets scans. The opt-in workload test also runs in Linux LCOV CI so its script is included in new-code coverage. Local actionlint is unavailable and npm audit could not reach registry.npmjs.org; exact-head remote checks remain required.
 - [ ] Verify the exact pushed SHA and GitHub/Sonar status; review the complete diff.
 - [ ] Commit and push only the existing PR branch, update PR #16 description, and keep it Draft/open.
 - [ ] Report evidence, remaining blockers, financial limits, and NO-GO recommendation.

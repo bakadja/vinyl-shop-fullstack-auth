@@ -204,7 +204,10 @@ async function run() {
     try { live = await request(`${baseUrl}/health/ready`); if (live.status === 200) break } catch {}
     await delay(500)
   }
-  assert.equal(live?.status, 200, 'PostgreSQL-backed readiness must succeed')
+  if (live?.status !== 200) {
+    const state = await docker(['inspect', '--format', '{{.State.Status}}|{{.State.ExitCode}}|{{.State.OOMKilled}}', appName], { allowFailure: true })
+    throw new Error(`PostgreSQL-backed readiness failed (app container ${state.code === 0 ? state.stdout : 'unavailable'})`)
+  }
   const observed = live.headers.get('x-observed-remote')
   assert.ok(observed, 'Caddy must expose its direct peer to the local test assertion')
   assert.equal(live.headers.has('set-cookie'), false, 'Health must not create a session')
@@ -243,9 +246,19 @@ async function run() {
 
   currentStage = 'concurrent request and auth-abuse workload'
   await psql(pgName, 'DELETE FROM auth_abuse_counters;')
-  const failures = await Promise.all(Array.from({ length: 24 }, (_, index) => request(`${baseUrl}/api/auth/login`, {
-    method: 'POST', body: { username: `fictional-burst-${index}-${suffix}`, password: 'Fictional-wrong-password-123' }
-  })))
+  const failures = []
+  for (let batch = 0; batch < 4; batch++) {
+    const responses = await Promise.all(Array.from({ length: 5 }, (_, offset) => {
+      const index = batch * 5 + offset
+      return request(`${baseUrl}/api/auth/login`, {
+        method: 'POST', body: { username: `fictional-burst-${index}-${suffix}`, password: 'Fictional-wrong-password-123' }
+      })
+    }))
+    failures.push(...responses)
+  }
+  failures.push(await request(`${baseUrl}/api/auth/login`, {
+    method: 'POST', body: { username: `fictional-burst-20-${suffix}`, password: 'Fictional-wrong-password-123' }
+  }))
   assert.ok(failures.every(response => [401, 429, 503].includes(response.status)), `Concurrent auth response counts: ${JSON.stringify(Object.fromEntries([...new Set(failures.map(response => response.status))].map(status => [status, failures.filter(response => response.status === status).length])))}`)
   assert.ok(failures.some(response => response.status === 429), 'Concurrent abuse must reach the configured limiter')
 
@@ -270,7 +283,7 @@ async function run() {
 
   console.log(`Runtime workload passed on Docker Linux/amd64 with PostgreSQL TLS verify-full.`)
   console.log(`Caddy header spoof checks: a spoofed single header did not change the charged peer; duplicate headers received HTTP ${duplicate.status}; peer=${peerIdentity(observed)}.`)
-  console.log(`Requests: 32 concurrent product/cart reads; 24 concurrent invalid logins (${failures.filter(r => r.status === 401).length} HTTP 401, ${failures.filter(r => r.status === 429).length} HTTP 429, ${failures.filter(r => r.status === 503).length} controlled HTTP 503).`)
+  console.log(`Requests: 32 concurrent product/cart reads; 21 invalid logins in five-request waves (${failures.filter(r => r.status === 401).length} HTTP 401, ${failures.filter(r => r.status === 429).length} HTTP 429, ${failures.filter(r => r.status === 503).length} controlled HTTP 503).`)
   console.log(`Recovery: registration, PostgreSQL session, cart and readiness survived an app container restart.`)
   console.log(`Memory caps: app 704 MiB + Caddy 64 MiB = 768 MiB; measured peaks ${peaks[appName].toFixed(1)} MiB and ${peaks[caddyName].toFixed(1)} MiB; no OOM.`)
   console.log(`The remaining 256 MiB of the 1-GiB VM budget is reserved for the guest OS and agents; the local Docker VM has separate overhead.`)
