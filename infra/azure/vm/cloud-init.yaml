@@ -82,7 +82,9 @@ write_files:
 
       __APP_DOMAIN__ {
         encode zstd gzip
-        reverse_proxy 127.0.0.1:8000
+        reverse_proxy 127.0.0.1:8000 {
+          header_up X-Forwarded-For {remote_host}
+        }
       }
   - path: /etc/systemd/system/vinyl-secrets.service
     permissions: '0644'

@@ -6,23 +6,23 @@
 
 | Severity | Finding | Disposition |
 | --- | --- | --- |
-| Critical / deployment blocker | No verified narrow immediate-peer trust boundary for App Service Linux; client header normalization and probe transport unobserved | Preserve strict productionTransport; require independent live evidence or separately approved architecture |
-| High | Admission budgets identify the socket peer; shared Azure ingress may impose one budget on all visitors | Keep abuseProtection blocked pending topology/load/legitimate-user validation; no forwarded visitor IP trust added |
+| Critical / deployment blocker | Azure ingress peer, header normalization, backend isolation, and probe transport remain unobserved for the VM candidate | Preserve strict transport and closed proxy gate; require independent live evidence or separately approved architecture |
+| High | The VM candidate accepts one validated forwarded IP only from its exact loopback Caddy peer; actual ingress and backend isolation remain unverified | Keep abuseProtection blocked pending Azure topology and legitimate-user validation; local 24-request burst also observed 2 controlled 503 responses |
 | High | Private bootstrap execution, runtime LOGIN privilege matrix and Key Vault resolution not exercised on Azure | Keep bootstrap blocked; explicit ordered procedure in operations runbook |
 | High | Subscription-specific eligibility, policy, quota, credit balance and regional capacity unknown | Keep subscriptionQuotas/costApproval blocked |
-| High | Azure PITR and original-artifact rollback not exercised; B1 has no staging slots | Keep restoreDrill blocked; local drill is limited evidence |
+| High | VM/PostgreSQL PITR and immutable application rollback not exercised; no prior release artifact was verified here | Keep restoreDrill blocked; local drill is limited evidence |
 | Medium | Offline ARM policy accepted lost VNet route-all/Always On and unbudgeted backup/HA/storage changes | Fixed and covered by rejection tests; existing Bicep profile unchanged |
 | Review blocker | Historic PR #12 Sonar architecture issues may persist; current PR analysis required | Report exact-head remote result separately; no suppressions, issue status or protection changes |
 
-Sentry remains unchanged, including its explicit preload startup command. The raw-event privacy review from PR #15 is deferred separately and is not part of this PR. No application/session/database security changes were needed for these offline fixes.
+The prior Sentry integration remains unchanged, including its explicit preload startup command. The raw-event privacy review from PR #15 remains separately deferred. This VM follow-up changes abuse-limit peer identity only behind the configured loopback proxy; it adds no schema, data migration, secret, or Azure resource changes.
 
-## Azure ingress evidence and alternatives
+## Prior App Service ingress evidence; not VM evidence
 
-[Microsoft's Node guide](https://learn.microsoft.com/en-us/azure/app-service/configure-language-nodejs?pivots=platform-linux) confirms edge TLS termination and forwarded protocol headers. Its generic hop-count Express example does not prove this application's stricter trust contract. [VNet integration](https://learn.microsoft.com/en-us/azure/app-service/overview-vnet-integration) provides outbound access and cannot establish inbound peer identity. [Health check documentation](https://learn.microsoft.com/en-us/azure/app-service/monitor-instances-health-check) describes platform probes; real peer/header behavior under this production transport policy remains unverified.
+The following links describe the existing App Service baseline and do not establish ingress behavior for the VM candidate. [Microsoft's Node guide](https://learn.microsoft.com/en-us/azure/app-service/configure-language-nodejs?pivots=platform-linux) confirms edge TLS termination and forwarded protocol headers. Its generic hop-count Express example does not prove this application's stricter trust contract. [VNet integration](https://learn.microsoft.com/en-us/azure/app-service/overview-vnet-integration) provides outbound access and cannot establish inbound peer identity. [Health check documentation](https://learn.microsoft.com/en-us/azure/app-service/monitor-instances-health-check) describes platform probes; real peer/header behavior under this production transport policy remains unverified.
 
-Current code trusts only configured narrow immediate-peer CIDRs, requires one unambiguous HTTPS protocol header plus req.secure, and rejects requests before session writes. It never uses X-Forwarded-For as an abuse identity. Retain Secure/HttpOnly/SameSite/__Host cookies, fixed expiry and canonical origin. No Azure ingress CIDR has been invented.
+The VM candidate trusts only its configured loopback Caddy peer and derives the limiter identity from exactly one validated X-Forwarded-For IP that Caddy overwrites from its direct socket. Malformed or ambiguous values fail closed. Strict production transport, Secure/HttpOnly/SameSite/__Host cookies, fixed expiry and canonical origin remain. No Azure ingress CIDR has been invented, and these local checks do not establish Azure's peer or bypass behavior.
 
-Preferred next action is an explicitly authorized minimal diagnostic environment with no accounts/session secrets, testing restart/replacement, alternate ingress paths and spoofed/duplicate headers. Observing one peer once is insufficient; establish a supported lifecycle and isolation guarantee. If that cannot be established, consider a separately reviewed owned TLS ingress and private authenticated backend boundary with demonstrable peers, sanitization and inaccessible bypass paths. Merely adding Front Door/Application Gateway in front of App Service does not establish the worker's immediate peer identity. An alternative hosting design exposing an operator-controlled backend boundary is another option, with new cost/operations review. Neither alternative is implemented or cost-approved here.
+Before any future Azure diagnostic, the owner must explicitly authorize the environment. It should verify the actual address reaching Caddy, that Express remains reachable only on loopback, health/probe behavior, restart and VM-replacement lifecycle, and spoofed/duplicate header handling without production accounts or session secrets. Observing one peer once is insufficient; establish a supported isolation and lifecycle guarantee. If the platform cannot establish that boundary, consider a separately reviewed ingress architecture with a verifiable peer and inaccessible bypass paths. The App Service alternatives discussed in the links above do not prove this VM candidate's behavior.
 
 ## Database and runtime audit
 
@@ -32,20 +32,7 @@ Local tests cover these contracts and repeatable initialization. They do not pro
 
 ## Costs: facts, estimate and account unknowns
 
-Public retail API queried on 2026-10-16 without authentication, filter `armRegionName eq 'westeurope'`, Consumption pricing, services Azure App Service and Azure Database for PostgreSQL. These are hypothetical regional USD list rates, not an approved region, contractual quote or subscription bill. See [Retail Prices API](https://learn.microsoft.com/en-us/rest/api/cost-management/retail-prices/azure-retail-prices).
-
-| Meter | Observed unit price | 730-hour example |
-| --- | --- | --- |
-| Azure App Service Basic Plan - Linux / B1 | $0.018 per hour | $13.14 |
-| PostgreSQL Flexible Server Burstable BS Series Compute / B1MS | $0.0199 per hour | $14.53 |
-| PostgreSQL Flex Server Storage / Storage Data Stored | $0.1369 per GB-month | 32-unit approximation $4.38 |
-| Compute plus base storage | | **$32.05/month** |
-
-A planning envelope of **$35–40/month** allows modest ancillary use; it is not a cap. Meter GB versus provisioned GiB, taxes/currency, DNS, Key Vault operations, metric alerts, egress, backup overage, temporary bootstrap infrastructure and a second restored server can change the total. Recalculate in the owner's selected region/currency and approve a contingency before spending.
-
-The [Students offer](https://azure.microsoft.com/en-us/free/students/) advertises $100/12 months and eligible first-year PostgreSQL B1ms hours/storage allowances. Whether they apply to this account is unknown; never assume B1 App Service is free. If PostgreSQL compute/base storage are actually covered, an illustrative $15–20/month envelope may be plausible; no entitlement is verified. Do not extrapolate full-year affordability from $100 credit. [Education terms](https://learn.microsoft.com/en-us/azure/education-hub/faq) restrict the offer's purposes; verify this remains an educational software demonstration rather than a commercial store.
-
-[App Service plan charges](https://learn.microsoft.com/en-us/azure/app-service/overview-manage-costs) continue while the plan exists, even without apps. Stopped PostgreSQL retains storage/backup costs; [maintenance documentation](https://learn.microsoft.com/en-us/azure/postgresql/configure-maintain/concepts-maintenance) describes seven-day automatic restart. [Spending limits](https://learn.microsoft.com/en-us/azure/cost-management-billing/manage/spending-limit) protect most spending, not every possible charge; budgets are alerts, not shutoffs. [Students credit exhaustion/expiry](https://learn.microsoft.com/en-us/azure/cost-management-billing/manage/azurestudents-subscription-disabled) can disable services. Do not alter billing, add payment methods, remove limits or upgrade automatically.
+The current VM candidate's dated Poland Central worksheet is in [the architecture assessment](azure-vm-architecture.md#cost-worksheet). It totals about **$45.70/month** at public retail list rates before variable operating costs. The **$4.88/month** case applies only if every relevant 12-month VM/PostgreSQL/disk allowance still applies; it counts the static IP and one DNS zone and leaves almost no room for operations. These USD scenarios are not a quote, a EUR conversion, a verified entitlement, or a reliable all-in **5 EUR/month** cap. The owner reports $88 credit through 2027-10-14; the subscription was not inspected. Confirm exact offer, balances, region, storage/backup, network, Key Vault and restore overlap privately before any spending decision. Credit is not a billing cap, and budgets are alerts.
 
 ### Owner cost-approval checklist
 
@@ -61,8 +48,8 @@ The [Students offer](https://azure.microsoft.com/en-us/free/students/) advertise
 
 | Gate | Current status | Available offline evidence | Missing independent evidence / owner action |
 | --- | --- | --- | --- |
-| proxy | BLOCKED | Strict transport regression suite; official documentation analysis | Approve diagnostics; prove immediate peer boundary, lifecycle, spoofed-header rejection, health/warm-up and browser cookie flows, or approve another architecture |
-| abuseProtection | BLOCKED | Persistent counters, multi-process/restart/failure tests from main | Validate actual peer/client topology, shared budgets, CPU/DB load and legitimate-user impact |
+| proxy | BLOCKED | Strict transport tests; Caddy overwrite and spoof tests; local Caddy-to-Express runtime check | Approve diagnostics; prove Azure immediate peer boundary, lifecycle, backend isolation, health/warm-up and browser cookie flows, or approve another architecture |
+| abuseProtection | BLOCKED | Persistent counter tests; local 24-login burst (20 HTTP 401, 2 HTTP 429, 2 controlled HTTP 503) and proxy peer-key check | Validate Azure peer/client topology, actual CPU/DB load and legitimate-user impact; owner must accept or mitigate overload back-pressure |
 | subscriptionQuotas | BLOCKED | B1/B1ms/private-network template reviewed | Privately verify offer, credit expiry, regional quotas/capacity and policy |
 | costApproval | BLOCKED | Dated public list-rate estimate and checklist | Account-specific estimate and explicit spending approval, including bootstrap/restore |
 | bootstrap | BLOCKED | Ordered initializers, TLS/schema tests and local repeatability | Approved private execution path; least-privilege LOGIN negative tests; resolved Key Vault refs; actual startup |
@@ -81,3 +68,9 @@ Independent final review found no Critical/Important defect, independently passe
 Sonar follow-up: restore initialization remains sequential through an explicit bootstrap helper; independent table comparisons and schema cleanup run concurrently. No Sonar threshold, exclusion or issue state changed. Linux coverage now exercises the real version-matched pg_dump/psql in its disposable PostgreSQL service; macOS/local runs use the cluster helper’s explicit client directory.
 
 Second remote analysis at 26d579e: new-code coverage reached **90.5%**, but security rating failed because Docker was resolved through PATH (S4036). The helper now uses fixed absolute Docker paths and a fixed child PATH. The Docker regression was reproduced with an invalid caller PATH before the fix, then passed afterward. No scanner suppression or threshold change was used.
+
+## VM follow-up evidence — 2026-10-16
+
+The local disposable workload on Draft PR #16 exercises the allowlisted Node 24 package with PostgreSQL 17 TLS verification, Caddy, registration/login, product/cart reads, concurrent traffic, restart recovery, and a bounded memory profile. Run `node scripts/azure/runtime-load.js` from the PR worktree. The measured app/Caddy peaks were 221.3/61.0 MiB under combined 768-MiB caps, with no OOM; the 1-GiB VM candidate reserves 256 MiB for guest OS and agents. A 24-request invalid-login burst produced 20 HTTP 401, 2 HTTP 429, and 2 controlled HTTP 503 responses. This confirms back-pressure rather than proving acceptable user impact. The production-profile app received Caddy-overwritten HTTPS metadata; real TLS handshake and secure-cookie behavior are covered separately by the browser suite. The local Docker Linux/amd64 run used an aarch64 Colima host and emulation; its Docker VM, Azure guest/kernel/agents, production ingress, managed PostgreSQL, regional service limits and subscription costs are outside the measurement. It does not open any readiness gate.
+
+The architecture cost snapshot remains a dated public Poland Central estimate: about $45.70/month before variable operations, with roughly $4.88 only in the conditional case where all applicable free allowances remain eligible. That is not an all-in 5 EUR guarantee; the owner-reported credit and expiry were not inspected. All six gates remain blocked and deployment remains disabled.

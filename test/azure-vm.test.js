@@ -116,6 +116,7 @@ test('cloud-init keeps secrets in Key Vault and binds Express behind local Caddy
   assert.match(service, /TRUSTED_PROXY_CIDRS=127\.0\.0\.1\/32/)
   assert.match(service, /PGHOST=__POSTGRES_HOST__/)
   assert.match(caddy, /reverse_proxy 127\.0\.0\.1:8000/)
+  assert.match(caddy, /header_up X-Forwarded-For \{remote_host\}/)
   for (const secret of ['runtime-db-password', 'session-signing-key', 'session-verification-keys', 'auth-abuse-hmac-key', 'sentry-dsn']) assert.ok(secretFetcher.includes(secret))
   assert.match(secretFetcher, /grp\.getgrnam\('vinyl'\)\.gr_gid/)
   assert.doesNotMatch(source, /__NODESOURCE_KEY__|__CADDY_KEY__/)
