@@ -36,7 +36,7 @@ export function requestPeerIdentity(remoteAddress, rawHeaders = [], trustPeer = 
 }
 
 const policies = {
-  login: { burst: [20, 10], global: [120, 60], peer: [60, 900], pair: [10, 900] },
+  login: { burst: [20, 30], global: [120, 60], peer: [60, 900], pair: [10, 900] },
   register: { burst: [5, 60], global: [30, 3600], peer: [10, 3600], pair: [3, 3600] }
 }
 export function counterKeys(key, endpoint, peer, username) {

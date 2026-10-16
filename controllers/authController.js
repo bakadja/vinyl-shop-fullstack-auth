@@ -4,7 +4,7 @@ import isEmail from 'validator/lib/isEmail.js'
 import { getDatabase } from '../db/db.js'
 import bcrypt from 'bcryptjs'
 import { randomBytes } from 'node:crypto'
-import { authenticationFailureClass } from '../sessions/failure-class.js'
+import { authenticationFailureClass, loginFailureResponse } from '../sessions/failure-class.js'
 
 const dummyPasswordHash = bcrypt.hashSync(randomBytes(32).toString('hex'), 10)
 const bounded = (value, bytes) => typeof value === 'string' && Buffer.byteLength(value, 'utf8') <= bytes
@@ -103,7 +103,8 @@ export async function loginUser(req, res) {
 
   } catch (err) {
     console.error(`Login failed (stage=${stage}, class=${authenticationFailureClass(err)})`)
-    res.status(500).json({ error: 'Login failed. Please try again.' })
+    const response = loginFailureResponse(err)
+    res.status(response.status).set(response.headers).json(response.body)
   }
 }
 

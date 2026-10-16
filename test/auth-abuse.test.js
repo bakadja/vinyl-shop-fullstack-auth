@@ -34,6 +34,13 @@ import { startSessionProcess } from '../test-support/session-process.js'
 import { postgresFixture } from '../test-support/postgresql.js'
 import { createDatabase } from '../db/db.js'
 
+test('login burst cap stays at 20 attempts with a 30-second window', () => {
+  const counters = counterKeys(randomBytes(32), 'login', 'peer', 'user')
+  assert.deepEqual(counters.slice(0, 2).map(({ limit, seconds }) => ({ limit, seconds })), [
+    { limit: 20, seconds: 30 }, { limit: 120, seconds: 60 }
+  ])
+})
+
 test('HMAC domains preserve case and trim semantics without personal identifiers; peer canonicalization ignores IPv6 host rotation', () => {
   const key = randomBytes(32)
   const keys = name => counterKeys(key, 'login', '127.0.0.1', name)
