@@ -91,6 +91,7 @@ export function validateVmTemplate(template) {
       vmProps.storageProfile?.osDisk?.diskSizeGB !== 64 || vmProps.storageProfile?.osDisk?.managedDisk?.storageAccountType !== 'Premium_LRS' ||
       vmProps.storageProfile?.osDisk?.deleteOption !== 'Delete' || vmProps.osProfile?.linuxConfiguration?.disablePasswordAuthentication !== true ||
       !vmProps.osProfile?.linuxConfiguration?.ssh?.publicKeys?.length || vmProps.diagnosticsProfile?.bootDiagnostics?.enabled !== true ||
+      vmProps.securityProfile?.encryptionAtHost !== true || vmProps.securityProfile?.securityType !== 'TrustedLaunch' ||
       !vmProps.networkProfile?.networkInterfaces?.some(item => String(item.id).includes('networkInterfaces'))) vmTemplateError()
   if (publicIp.condition !== ingress || publicIp.sku?.name !== 'Standard' || publicIp.properties?.publicIPAllocationMethod !== 'Static' ||
       template.resources.some(item => item.type.toLowerCase() === 'microsoft.network/natgateways' || /applicationgateways|loadbalancers|privateendpoints/i.test(item.type))) vmTemplateError()
@@ -123,7 +124,7 @@ export function validateVmTemplate(template) {
   if (!vmSubnet || !vmSubnet.properties.serviceEndpoints?.some(item => item.service === 'Microsoft.KeyVault') ||
       !dbSubnet?.properties.delegations?.some(item => item.properties.serviceName === 'Microsoft.DBforPostgreSQL/flexibleServers')) vmTemplateError()
   const db = pg.properties
-  if (pg.sku?.name !== 'Standard_B1ms' || pg.sku.tier !== 'Burstable' || db.version !== '17' || db.storage?.storageSizeGB !== 32 ||
+  if (pg.identity?.type !== 'SystemAssigned' || pg.sku?.name !== 'Standard_B1ms' || pg.sku.tier !== 'Burstable' || db.version !== '17' || db.storage?.storageSizeGB !== 32 ||
       db.storage?.type !== 'Premium_LRS' || db.storage?.autoGrow !== 'Disabled' || db.backup?.backupRetentionDays !== 7 ||
       db.backup?.geoRedundantBackup !== 'Disabled' || db.highAvailability?.mode !== 'Disabled' || db.network?.publicNetworkAccess !== 'Disabled' ||
       !db.network?.delegatedSubnetResourceId || !db.network?.privateDnsZoneArmResourceId || tls.properties?.value !== 'on' ||

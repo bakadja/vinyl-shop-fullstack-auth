@@ -301,6 +301,7 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
   location: location
   sku: { name: 'Standard_B1ms', tier: 'Burstable' }
   tags: tags
+  identity: { type: 'SystemAssigned' }
   dependsOn: [dnsLink]
   properties: {
     version: '17'
@@ -377,7 +378,11 @@ resource vm 'Microsoft.Compute/virtualMachines@2024-07-01' = {
     }
     networkProfile: { networkInterfaces: [{ id: nic.id, properties: { primary: true } }] }
     diagnosticsProfile: { bootDiagnostics: { enabled: true } }
-    securityProfile: { securityType: 'TrustedLaunch', uefiSettings: { secureBootEnabled: true, vTpmEnabled: true } }
+    securityProfile: {
+      securityType: 'TrustedLaunch'
+      encryptionAtHost: true
+      uefiSettings: { secureBootEnabled: true, vTpmEnabled: true }
+    }
   }
 }
 

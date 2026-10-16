@@ -42,12 +42,14 @@ function template() {
         hardwareProfile: { vmSize: 'Standard_B2ats_v2' },
         storageProfile: { imageReference: { publisher: 'Canonical', offer: 'ubuntu-24_04-lts' }, osDisk: { diskSizeGB: 64, deleteOption: 'Delete', managedDisk: { storageAccountType: 'Premium_LRS' } } },
         osProfile: { linuxConfiguration: { disablePasswordAuthentication: true, ssh: { publicKeys: [{ keyData: 'ssh-rsa AAAA example', path: '/home/operator/.ssh/authorized_keys' }] } }, customData: '[base64(cloud-init)]' },
-        diagnosticsProfile: { bootDiagnostics: { enabled: true } }, networkProfile: { networkInterfaces: [{ id: '/networkInterfaces/vm-nic' }] }
+        diagnosticsProfile: { bootDiagnostics: { enabled: true } },
+        securityProfile: { securityType: 'TrustedLaunch', encryptionAtHost: true, uefiSettings: { secureBootEnabled: true, vTpmEnabled: true } },
+        networkProfile: { networkInterfaces: [{ id: '/networkInterfaces/vm-nic' }] }
       } },
       { type: 'Microsoft.Network/networkInterfaces', name: 'vm-nic', tags, properties: { ipConfigurations: [{ properties: { publicIPAddress: { id: 'public-ip' }, subnet: { id: 'vm-subnet' } } }] } },
       { type: 'Microsoft.Network/privateDnsZones', name: 'private.postgres.database.azure.com', tags, properties: {} },
       { type: 'Microsoft.Network/privateDnsZones/virtualNetworkLinks', name: 'database-link', tags, properties: { registrationEnabled: false, virtualNetwork: { id: 'vm-vnet' } } },
-      { type: 'Microsoft.DBforPostgreSQL/flexibleServers', name: 'postgres', tags, sku: { name: 'Standard_B1ms', tier: 'Burstable' }, properties: {
+      { type: 'Microsoft.DBforPostgreSQL/flexibleServers', name: 'postgres', tags, identity: { type: 'SystemAssigned' }, sku: { name: 'Standard_B1ms', tier: 'Burstable' }, properties: {
         version: '17', storage: { storageSizeGB: 32, autoGrow: 'Disabled', type: 'Premium_LRS' },
         backup: { backupRetentionDays: 7, geoRedundantBackup: 'Disabled' }, highAvailability: { mode: 'Disabled' },
         network: { publicNetworkAccess: 'Disabled', delegatedSubnetResourceId: 'database-subnet', privateDnsZoneArmResourceId: 'database-zone' }
@@ -66,6 +68,7 @@ test('VM candidate keeps secure defaults and required services', () => {
 test('VM candidate rejects public database, broad SSH, unbudgeted ingress, and expensive drift', () => {
   const changes = [
     t => t.resources[8].properties.network.publicNetworkAccess = 'Enabled',
+    t => delete t.resources[8].identity,
     t => t.resources[0].properties.securityRules[2].properties.sourceAddressPrefix = '*',
     t => t.resources[0].properties.securityRules[0].properties.destinationPortRange = '*',
     t => t.resources[4].properties.hardwareProfile.vmSize = 'Standard_B2ms',
