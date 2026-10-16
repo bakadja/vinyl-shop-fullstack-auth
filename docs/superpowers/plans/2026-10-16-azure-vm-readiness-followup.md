@@ -57,6 +57,6 @@
 ### Task 4: Verify, update the existing PR and report
 
 - [x] Run focused/full PostgreSQL-backed regression (196/196), runtime workload, Azure artifact validation and secrets scans. The opt-in workload test also runs in Linux LCOV CI so its script is included in new-code coverage. Exact-head Linux and macOS CI passed after fixing Linux temp-file ownership by matching the host UID/GID. Local actionlint is unavailable and local npm audit could not reach registry.npmjs.org; GitHub dependency audit passed.
-- [x] Verify exact PR head `7456244424d95ab9f5f5ee4af53f86ef16addfbf`: API workflow 38912571578 and Azure readiness workflow 38912571202 passed; Sonar Quality Gate passed at 94.0% new-code coverage. Review the complete diff.
+- [x] Verify exact PR head `09e4be5a5e9d50419d36686601cd2af2346013f1`: API workflow 38913299283 and Azure readiness workflow 38913299267 passed; Sonar Quality Gate passed at 93.9% new-code coverage. Review the complete diff.
 - [x] Commit and push only the existing PR branch, update PR #16 description, and keep it Draft/open.
 - [x] Report evidence, remaining blockers, financial limits, and NO-GO recommendation.
