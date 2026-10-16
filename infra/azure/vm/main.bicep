@@ -10,7 +10,6 @@
 param location string = 'polandcentral'
 param prefix string = 'vinyl'
 param suffix string
-var databaseSubnetAddressPrefix = '10.42.1.0/28'
 param vaultName string
 param postgresName string
 param appDomain string
@@ -23,6 +22,7 @@ param enablePublicIngress bool = false
 param adminSshAddress string = '127.0.0.1'
 param administratorUserName string = 'azureadmin'
 param administratorUser string = 'vinyl_migrator'
+var databaseSubnetAddressPrefix = '10.42.1.0/28'
 
 var tags = {
   project: 'vinyl-shop'
