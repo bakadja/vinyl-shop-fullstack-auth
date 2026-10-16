@@ -56,7 +56,7 @@
 
 ### Task 4: Verify, update the existing PR and report
 
-- [x] Run focused/full PostgreSQL-backed regression (196/196), runtime workload, Azure artifact validation and secrets scans. The opt-in workload test also runs in Linux LCOV CI so its script is included in new-code coverage. Local actionlint is unavailable and npm audit could not reach registry.npmjs.org; exact-head remote checks remain required.
+- [x] Run focused/full PostgreSQL-backed regression (196/196), runtime workload, Azure artifact validation and secrets scans. The opt-in workload test also runs in Linux LCOV CI so its script is included in new-code coverage. Exact-head macOS CI passed; Linux CI exposed root-owned temp files from containerized npm install, now fixed by matching the host UID/GID and locally revalidated. Local actionlint is unavailable and npm audit could not reach registry.npmjs.org; exact-head remote rerun remains required.
 - [ ] Verify the exact pushed SHA and GitHub/Sonar status; review the complete diff.
 - [ ] Commit and push only the existing PR branch, update PR #16 description, and keep it Draft/open.
 - [ ] Report evidence, remaining blockers, financial limits, and NO-GO recommendation.

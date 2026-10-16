@@ -152,7 +152,7 @@ async function run() {
   currentStage = 'runtime allowlist assembly'
   await assembleRuntime(root, runtime, { release })
   currentStage = 'Linux/amd64 production dependency installation'
-  await docker(['run', '--rm', '--platform', 'linux/amd64', '--mount', `type=bind,src=${runtime},dst=/app`, '--workdir', '/app', images.node, 'npm', 'ci', '--omit=dev', '--ignore-scripts'])
+  await docker(['run', '--rm', '--platform', 'linux/amd64', '--user', `${process.getuid()}:${process.getgid()}`, '--env', 'HOME=/tmp', '--env', 'npm_config_cache=/tmp/npm-cache', '--mount', `type=bind,src=${runtime},dst=/app`, '--workdir', '/app', images.node, 'npm', 'ci', '--omit=dev', '--ignore-scripts'])
   currentStage = 'isolated Docker network'
   await docker(['network', 'create', network])
 
