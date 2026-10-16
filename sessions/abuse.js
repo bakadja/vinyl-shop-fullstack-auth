@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto'
 import { isIP, SocketAddress } from 'node:net'
+import { authenticationFailureClass } from './failure-class.js'
 
 export function abuseKey(env = process.env) {
   const key = env.AUTH_ABUSE_HMAC_KEY
@@ -7,8 +8,8 @@ export function abuseKey(env = process.env) {
   return Buffer.from(key, 'hex')
 }
 
-// Only the immediate socket peer is authoritative. Forwarding headers are never read.
-// In Azure this can be a shared proxy identity, not the visitor's address.
+// Direct peers are authoritative unless they match the configured local proxy.
+// Caddy overwrites X-Forwarded-For from its direct socket peer; ambiguous values fail closed.
 export function peerIdentity(address) {
   const version = isIP(address)
   if (!version) return 'unknown-peer'
@@ -22,8 +23,20 @@ export function peerIdentity(address) {
   return expanded.slice(0, 4).map(part => part.padStart(4, '0')).join(':') + '::/64'
 }
 
+export function requestPeerIdentity(remoteAddress, rawHeaders = [], trustPeer = () => false) {
+  if (!trustPeer(remoteAddress)) return peerIdentity(remoteAddress)
+  const forwarded = []
+  for (let index = 0; index < rawHeaders.length; index += 2) {
+    if (rawHeaders[index].toLowerCase() === 'x-forwarded-for') forwarded.push(rawHeaders[index + 1])
+  }
+  if (forwarded.length !== 1 || forwarded[0] !== forwarded[0].trim() || !isIP(forwarded[0])) {
+    throw new Error('Invalid trusted proxy identity')
+  }
+  return peerIdentity(forwarded[0])
+}
+
 const policies = {
-  login: { burst: [20, 10], global: [120, 60], peer: [60, 900], pair: [10, 900] },
+  login: { burst: [20, 30], global: [120, 60], peer: [60, 900], pair: [10, 900] },
   register: { burst: [5, 60], global: [30, 3600], peer: [10, 3600], pair: [3, 3600] }
 }
 export function counterKeys(key, endpoint, peer, username) {
@@ -62,16 +75,18 @@ export async function consumeAttempt(database, counters) {
   })
 }
 
-export function authenticationAbuse(database, key) {
+export function authenticationAbuse(database, key, trustPeer = () => false) {
   return async (req, res, next) => {
     const endpoint = req.path.toLowerCase().replace(/\/$/, '').slice(1)
     if (req.method !== 'POST' || !Object.hasOwn(policies, endpoint)) return next()
     try {
-      const result = await consumeAttempt(database, counterKeys(key, endpoint, peerIdentity(req.socket.remoteAddress), req.body?.username))
+      const peer = requestPeerIdentity(req.socket.remoteAddress, req.rawHeaders, trustPeer)
+      const result = await consumeAttempt(database, counterKeys(key, endpoint, peer, req.body?.username))
       if (result.allowed) return next()
       res.status(429).set({ 'Retry-After': String(result.retryAfter), 'Cache-Control': 'no-store' }).json({ error: 'Too many authentication attempts. Please try again later.' })
-    } catch {
+    } catch (error) {
       // No raw error, address, username, cookie or PostgreSQL configuration is logged.
+      console.error(`Authentication admission failed (class=${authenticationFailureClass(error)})`)
       res.status(503).set({ 'Retry-After': '5', 'Cache-Control': 'no-store' }).json({ error: 'Authentication temporarily unavailable. Please try again later.' })
     }
   }

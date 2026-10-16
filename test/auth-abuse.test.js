@@ -27,11 +27,19 @@ test('registration limits abuse and rejects bcrypt truncation before creating us
 })
 
 import { randomBytes } from 'node:crypto'
+import * as abuse from '../sessions/abuse.js'
 import { abuseKey, peerIdentity, counterKeys, consumeAttempt, authenticationAbuse } from '../sessions/abuse.js'
 import { initializeAbuse, validateAbuseSchema } from '../sessions/abuse-schema.js'
 import { startSessionProcess } from '../test-support/session-process.js'
 import { postgresFixture } from '../test-support/postgresql.js'
 import { createDatabase } from '../db/db.js'
+
+test('login burst cap stays at 20 attempts with a 30-second window', () => {
+  const counters = counterKeys(randomBytes(32), 'login', 'peer', 'user')
+  assert.deepEqual(counters.slice(0, 2).map(({ limit, seconds }) => ({ limit, seconds })), [
+    { limit: 20, seconds: 30 }, { limit: 120, seconds: 60 }
+  ])
+})
 
 test('HMAC domains preserve case and trim semantics without personal identifiers; peer canonicalization ignores IPv6 host rotation', () => {
   const key = randomBytes(32)
@@ -49,6 +57,51 @@ test('HMAC domains preserve case and trim semantics without personal identifiers
   assert.equal(peerIdentity('invalid'), 'unknown-peer')
   assert.equal(peerIdentity(undefined), 'unknown-peer')
   assert.deepEqual(keys({}), keys('x'.repeat(1025)))
+})
+
+test('abuse identity trusts one valid forwarded IP only from the configured immediate proxy', () => {
+  assert.equal(typeof abuse.requestPeerIdentity, 'function')
+  const { requestPeerIdentity } = abuse
+  const trustedLoopback = address => address === '127.0.0.1'
+  assert.equal(requestPeerIdentity('127.0.0.1', ['X-Forwarded-For', '198.51.100.23'], trustedLoopback), '198.51.100.23')
+  assert.equal(requestPeerIdentity('127.0.0.1', ['x-forwarded-for', '2001:db8:abcd:12::9'], trustedLoopback), '2001:0db8:abcd:0012::/64')
+  assert.equal(requestPeerIdentity('198.51.100.9', ['X-Forwarded-For', '203.0.113.7'], trustedLoopback), '198.51.100.9')
+  assert.equal(requestPeerIdentity('127.0.0.1', ['X-Forwarded-For', '203.0.113.7'], () => false), '127.0.0.1')
+  for (const headers of [
+    [],
+    ['X-Forwarded-For', '198.51.100.23', 'x-forwarded-for', '198.51.100.24'],
+    ['X-Forwarded-For', '198.51.100.23, 198.51.100.24'],
+    ['X-Forwarded-For', '198.51.100.23:8000'],
+    ['X-Forwarded-For', ' 198.51.100.23']
+  ]) assert.throws(() => requestPeerIdentity('127.0.0.1', headers, trustedLoopback), /Invalid trusted proxy identity/)
+})
+
+test('authentication middleware keys trusted proxy requests by the validated client and rejects ambiguous identity before admission', async () => {
+  const key = randomBytes(32)
+  const inserted = []
+  const database = { transaction: async operation => operation({ query: async (sql, values = []) => {
+    if (sql.includes('SELECT clock_timestamp() AS now')) return { rows: [{ now: new Date() }] }
+    if (sql.includes('count(*) FILTER')) return { rows: [{ total: '0', existing: '0' }] }
+    if (sql.startsWith('INSERT INTO auth_abuse_counters')) {
+      inserted.push(values[0])
+      return { rows: [{ attempts: 1, expires_at: values[1] }] }
+    }
+    return { rows: [] }
+  } }) }
+  const middleware = authenticationAbuse(database, key, address => address === '127.0.0.1')
+  let next = 0
+  const response = { status(code) { this.code = code; return this }, set() { return this }, json(body) { this.body = body; return this } }
+  await middleware({ method: 'POST', path: '/login', socket: { remoteAddress: '127.0.0.1' }, rawHeaders: ['X-Forwarded-For', '198.51.100.23'], body: { username: 'User' } }, response, () => next++)
+  assert.equal(next, 1)
+  assert.deepEqual(inserted, counterKeys(key, 'login', '198.51.100.23', 'User').map(counter => counter.key))
+
+  inserted.length = 0
+  const unavailable = { ...response, code: 0, body: null }
+  await middleware({ method: 'POST', path: '/login', socket: { remoteAddress: '127.0.0.1' }, rawHeaders: ['X-Forwarded-For', '198.51.100.23', 'x-forwarded-for', '198.51.100.24'], body: { username: 'User' } }, unavailable, () => next++)
+  assert.equal(unavailable.code, 503)
+  assert.deepEqual(unavailable.body, { error: 'Authentication temporarily unavailable. Please try again later.' })
+  assert.deepEqual(inserted, [])
+  assert.equal(next, 1)
 })
 
 test('shared workers and a restarted worker cannot reset login limits; retry header and spoofed IPs remain safe', async t => {

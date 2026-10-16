@@ -5,7 +5,7 @@ import http from 'node:http'
 export async function startTlsProxy(t, { targetUrl, certificates, overwriteProtocol = true }) {
   const server = https.createServer({ key: await readFile(certificates.serverKeyFile), cert: await readFile(certificates.serverCertFile) }, (req, res) => {
     const headers = { ...req.headers }
-    if (overwriteProtocol) { headers['x-forwarded-proto'] = 'https'; delete headers['x-forwarded-host']; delete headers['x-forwarded-for'] }
+    if (overwriteProtocol) { headers['x-forwarded-proto'] = 'https'; delete headers['x-forwarded-host']; headers['x-forwarded-for'] = req.socket.remoteAddress }
     const upstream = http.request(new URL(req.url, typeof targetUrl === 'function' ? targetUrl() : targetUrl), { method: req.method, headers }, response => {
       res.writeHead(response.statusCode, response.headers); response.pipe(res)
     })

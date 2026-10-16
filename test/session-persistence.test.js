@@ -30,7 +30,8 @@ test('sessions survive restarts and workers, respect rotation and reject expired
  assert.equal((await removed.request('/api/auth/me',{headers:{Cookie:newCookie}})).body.isLoggedIn,true)
  const before=(await f.database.query('SELECT expire FROM user_sessions ORDER BY sid')).rows.map(row=>row.expire)
  await me(); assert.deepEqual((await f.database.query('SELECT expire FROM user_sessions ORDER BY sid')).rows.map(row=>row.expire),before)
- await f.database.query("UPDATE user_sessions SET sess=jsonb_set(sess::jsonb,'{authenticatedAt}',to_jsonb((extract(epoch from now())*1000)::bigint-28800001))::json")
+ // Use a fixed expired timestamp so the test does not depend on host/PostgreSQL clock skew.
+ await f.database.query("UPDATE user_sessions SET sess=jsonb_set(sess::jsonb,'{authenticatedAt}',to_jsonb(0::bigint))::json")
  assert.deepEqual((await me()).body,{isLoggedIn:false})
  assert.equal((await second.request('/api/cart',{headers:{Cookie}})).status,401)
 })

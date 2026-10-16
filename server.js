@@ -56,7 +56,7 @@ try {
   app.use('/api/auth',(req,res,next)=>{res.set('Cache-Control','no-store');next()})
   app.use('/api/auth/logout',logoutMethodGuard)
   app.use(express.json())
-  app.use('/api/auth',authenticationAbuse(db,key))
+  app.use('/api/auth',authenticationAbuse(db,key,config.trustPeer))
   // Public assets should not read authenticated sessions; HTTPS enforcement stays first.
   app.get('/favicon.ico', (_req, res) => {
     res.sendFile(fileURLToPath(new URL('./public/images/spiral_logo.png', import.meta.url)))
@@ -76,7 +76,9 @@ try {
     res.status(status).set('Cache-Control','no-store').json({error})
   })
   server=await new Promise((resolve,reject)=>{
-    const listening=app.listen(Number(process.env.PORT??8000),()=>resolve(listening))
+    const listening=config.bindAddress
+      ? app.listen(Number(process.env.PORT??8000),config.bindAddress,()=>resolve(listening))
+      : app.listen(Number(process.env.PORT??8000),()=>resolve(listening))
     listening.once('error',reject)
   })
   console.log(`Server running at http://localhost:${server.address().port}`)

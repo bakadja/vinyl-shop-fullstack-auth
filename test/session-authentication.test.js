@@ -28,7 +28,7 @@ for(const failure of ['regenerate','save']) test(`authentication ${failure} fail
  const response={clearCookie(){return this}}
  const req={sessionID:'old',sessionStore:{destroy(sid,cb){destroyed.push(sid);cb(null)}}}
  req.session={regenerate(cb){if(failure==='regenerate') return cb(new Error('sentinel'));req.sessionID='new';req.session={cookie:{},save(cb){saved++;cb(new Error('sentinel'))}};cb(null)}}
- await assert.rejects(establishSession(req,response,1,config))
+ await assert.rejects(establishSession(req,response,1,config),error=>error.message==='Authentication session failed'&&error.cause?.message==='sentinel')
  assert.equal(req.session,null)
  assert.ok(destroyed.includes(failure==='regenerate'?'old':'new'))
  assert.equal(saved,failure==='regenerate'?0:1)

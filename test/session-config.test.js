@@ -30,6 +30,14 @@ test('invalid keys and unsafe production inputs fail without echoing values', ()
 test('broad explicit networks cannot impersonate a narrowly trusted proxy',()=>{
  for(const range of ['0.0.0.0/1','128.0.0.0/1','::/1','8000::/1','10.0.0.0/9']) assert.throws(()=>sessionConfig({...production(),TRUSTED_PROXY_CIDRS:range}))
 })
+test('production listener binds only to the local Caddy peer when explicitly configured',()=>{
+ const baseline=sessionConfig(production())
+ assert.equal(baseline.bindAddress,undefined)
+ const prod=sessionConfig({...production(),APP_BIND_ADDRESS:'127.0.0.1'})
+ assert.equal(prod.bindAddress,'127.0.0.1')
+ assert.equal(sessionConfig({SPIRAL_SESSION_SECRET:key()}).bindAddress,undefined)
+ for(const address of ['0.0.0.0','::','192.0.2.10','localhost']) assert.throws(()=>sessionConfig({...production(),APP_BIND_ADDRESS:address}))
+})
 test('mapped IPv6 configuration cannot hide a broad IPv4 network',()=>{
  for(const range of ['::ffff:0.0.0.0/96','::ffff:0.0.0.0/97','::ffff:10.0.0.0/104','0:0:0:0:0:ffff:0000:0000/96','::ffff:0000:0000/96']) assert.throws(()=>sessionConfig({...production(),TRUSTED_PROXY_CIDRS:range}))
  const native=sessionConfig({...production(),TRUSTED_PROXY_CIDRS:'::/64'})

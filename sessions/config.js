@@ -48,13 +48,18 @@ function parseProxyMode(env, production) {
   if (!['direct', 'verified-proxy'].includes(mode) || production && mode !== 'verified-proxy') fail()
   return mode
 }
+function parseBindAddress(env, production) {
+  if (env.APP_BIND_ADDRESS === undefined) return undefined
+  if (!production || env.APP_BIND_ADDRESS !== '127.0.0.1') fail()
+  return env.APP_BIND_ADDRESS
+}
 export function sessionConfig(env = process.env) {
   const environment = parseEnvironment(env)
   const production = environment === 'production'
   const secrets = parseSecrets(env)
   rejectOverrides(env)
   const proxyMode = parseProxyMode(env, production)
-  return { environment, secrets, schema: databaseSchema(env), origin: origin(env.PUBLIC_ORIGIN ?? (production ? '' : 'http://localhost:8000'), production), proxyMode, trustPeer: trustPredicate(env, proxyMode),
+  return { environment, bindAddress: parseBindAddress(env, production), secrets, schema: databaseSchema(env), origin: origin(env.PUBLIC_ORIGIN ?? (production ? '' : 'http://localhost:8000'), production), proxyMode, trustPeer: trustPredicate(env, proxyMode),
     cookieName: production ? '__Host-vinyl.sid' : 'connect.sid', lifetimeMs: 28_800_000,
     cookie: { httpOnly: true, secure: production, sameSite: 'lax', path: '/', maxAge: 28_800_000 } }
 }
