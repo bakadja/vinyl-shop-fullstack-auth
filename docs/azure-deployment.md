@@ -1,4 +1,6 @@
-# Azure Deployment Readiness — PR #12
+# Azure Deployment Readiness
+
+Current follow-up: [2026-10-16 assessment](azure-first-deployment-assessment.md) and [operator / restore runbook](azure-operations.md). Historical PR #12 verification records below are retained as historical evidence.
 
 Status: **NO-GO for provisioning and deployment**. This PR prepares files only. No Azure resource, identity, role assignment, federated credential, secret, deployment or GitHub protection is created by this work. No workflow provisions infrastructure. Do not run the delivery workflow as a test.
 
@@ -10,7 +12,7 @@ The VNet address space 10.42.0.0/16 is an example infrastructure address allocat
 
 Key Vault Standard uses RBAC and a default-deny firewall allowing only the App Service delegated subnet through its Key Vault service endpoint. Linux App Service routes outbound traffic through the VNet. Public endpoint enabled on the vault does not mean unrestricted access: unauthorised networks and identities are denied. Verify this routing and negative network tests before opening deployment gates. There is no paid Private Endpoint, NAT Gateway, Front Door, Application Gateway, ACR or Log Analytics workspace in this design.
 
-App Service has HTTPS Only, TLS >=1.2, FTP disabled, SCM basic authentication disabled, Always On, no client affinity and no automatic Azure build. `node server.js` starts the one worker explicitly and uses Azure's PORT. Deploy a Linux-built immutable ZIP with runtime dependencies; no .env, tests, scripts, Git metadata or development dependencies. `package.json` may retain scripts whose development files are intentionally absent from the runtime package.
+App Service has HTTPS Only, TLS >=1.2, FTP disabled, SCM basic authentication disabled, Always On, no client affinity and no automatic Azure build. `node --import ./instrument.js server.js` starts the one worker explicitly and uses Azure's PORT. Deploy a Linux-built immutable ZIP with runtime dependencies; no .env, tests, scripts, Git metadata or development dependencies. `package.json` may retain scripts whose development files are intentionally absent from the runtime package.
 
 ## Mandatory closed gates
 

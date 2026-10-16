@@ -9,7 +9,7 @@ function resources(template) {
 function validateApplication(app, plan) {
   const settings = Object.fromEntries((app.properties.siteConfig.appSettings ?? []).map(s => [s.name, s.value]))
   if (plan.sku.name !== 'B1' || plan.sku.capacity !== 1 || plan.properties.reserved !== true ||
-      app.properties.httpsOnly !== true || app.properties.siteConfig.minTlsVersion !== '1.2' || app.properties.siteConfig.scmMinTlsVersion !== '1.2' ||
+      app.properties.httpsOnly !== true || app.properties.vnetRouteAllEnabled !== true || app.properties.siteConfig.alwaysOn !== true || app.properties.siteConfig.minTlsVersion !== '1.2' || app.properties.siteConfig.scmMinTlsVersion !== '1.2' ||
       app.properties.siteConfig.linuxFxVersion !== 'NODE|24-lts' || app.properties.siteConfig.ftpsState !== 'Disabled' ||
       app.properties.siteConfig.healthCheckPath !== '/health/ready' || app.properties.clientAffinityEnabled !== false || !app.properties.virtualNetworkSubnetId ||
       app.identity.type !== 'SystemAssigned') templateError()
@@ -22,8 +22,9 @@ function validateApplication(app, plan) {
 }
 function validateDatabase(pg, secure) {
   if (pg.properties.version !== '17' || pg.sku.name !== 'Standard_B1ms' || pg.sku.tier !== 'Burstable' || pg.properties.storage.storageSizeGB !== 32 ||
-      pg.properties.storage.autoGrow !== 'Disabled' || pg.properties.network.publicNetworkAccess !== 'Disabled' ||
-      !pg.properties.network.delegatedSubnetResourceId || !pg.properties.network.privateDnsZoneArmResourceId || pg.properties.backup.backupRetentionDays < 7 ||
+      pg.properties.storage.autoGrow !== 'Disabled' || pg.properties.storage.type !== 'Premium_LRS' ||
+      pg.properties.highAvailability?.mode !== 'Disabled' || pg.properties.backup.geoRedundantBackup !== 'Disabled' || pg.properties.network.publicNetworkAccess !== 'Disabled' ||
+      !pg.properties.network.delegatedSubnetResourceId || !pg.properties.network.privateDnsZoneArmResourceId || pg.properties.backup.backupRetentionDays !== 7 ||
       secure?.properties.value !== 'on') templateError()
 }
 function validateVault(vault) {
