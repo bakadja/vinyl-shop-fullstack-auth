@@ -34,7 +34,9 @@ function command(program, args, { env = {}, input, allowFailure = false } = {}) 
 
 const docker = (args, options) => command('docker', args, options)
 const delay = milliseconds => new Promise(resolveDelay => setTimeout(resolveDelay, milliseconds))
-const responseCounts = responses => Object.fromEntries([...new Set(responses.map(response => response.status))].sort().map(status => [status, responses.filter(response => response.status === status).length]))
+const responseCounts = responses => Object.fromEntries([...new Set(responses.map(response => response.status))]
+  .sort((left, right) => Number(left) - Number(right))
+  .map(status => [status, responses.filter(response => response.status === status).length]))
 async function safeAuthDiagnostics(name) {
   const logs = await docker(['logs', '--since', '2m', name], { allowFailure: true })
   return `${logs.stdout}\n${logs.stderr}`.split('\n')
