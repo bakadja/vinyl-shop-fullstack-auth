@@ -6,36 +6,39 @@ import { validateVmTemplate } from '../scripts/azure/validate.js'
 
 const publicIngress = "[parameters('enablePublicIngress')]"
 const adminSsh = "[not(empty(parameters('adminSshAddress')))]"
+const databaseSubnetReference = "[variables('databaseSubnetAddressPrefix')]"
 function template() {
   const tags = { project: 'vinyl-shop', environment: 'demo', budget: 'azure-students' }
   return {
     parameters: {
       enablePublicIngress: { type: 'bool', defaultValue: false },
       adminSshAddress: { type: 'string', defaultValue: '127.0.0.1' },
-      administratorPassword: { type: 'secureString' }
+      administratorPassword: { type: 'secureString' },
+      location: { type: 'string', defaultValue: 'polandcentral', allowedValues: ['polandcentral', 'spaincentral', 'germanywestcentral', 'austriaeast', 'denmarkeast'] }
     },
+    variables: { tags, databaseSubnetAddressPrefix: '10.42.1.0/28' },
     resources: [
       { type: 'Microsoft.Network/networkSecurityGroups', name: 'vm-nsg', tags, properties: { securityRules: [
         { name: 'https', properties: { protocol: 'Tcp', sourceAddressPrefix: 'Internet', destinationPortRange: '443', access: 'Allow', direction: 'Inbound', priority: 100 } },
         { name: 'http', properties: { protocol: 'Tcp', sourceAddressPrefix: 'Internet', destinationPortRange: '80', access: 'Allow', direction: 'Inbound', priority: 110 } },
         { name: 'ssh', properties: { protocol: 'Tcp', sourceAddressPrefix: "[format('{0}/32', parameters('adminSshAddress'))]", destinationPortRange: '22', access: 'Allow', direction: 'Inbound', priority: 120 } },
         { name: 'dns', properties: { protocol: 'Udp', sourceAddressPrefix: '*', destinationAddressPrefix: '168.63.129.16/32', destinationPortRange: '53', access: 'Allow', direction: 'Outbound', priority: 100 } },
-        { name: 'database', properties: { protocol: 'Tcp', sourceAddressPrefix: '10.42.0.0/24', destinationAddressPrefix: '10.42.1.0/28', destinationPortRange: '5432', access: 'Allow', direction: 'Outbound', priority: 110 } },
+        { name: 'database', properties: { protocol: 'Tcp', sourceAddressPrefix: '10.42.0.0/24', destinationAddressPrefix: databaseSubnetReference, destinationPortRange: '5432', access: 'Allow', direction: 'Outbound', priority: 110 } },
         { name: 'https-egress', properties: { protocol: 'Tcp', sourceAddressPrefix: '*', destinationAddressPrefix: 'Internet', destinationPortRange: '443', access: 'Allow', direction: 'Outbound', priority: 120 } },
         { name: 'http-egress', properties: { protocol: 'Tcp', sourceAddressPrefix: '*', destinationAddressPrefix: 'Internet', destinationPortRange: '80', access: 'Allow', direction: 'Outbound', priority: 130 } },
         { name: 'ntp', properties: { protocol: 'Udp', sourceAddressPrefix: '*', destinationAddressPrefix: 'Internet', destinationPortRange: '123', access: 'Allow', direction: 'Outbound', priority: 140 } },
         { name: 'deny-egress', properties: { protocol: '*', sourceAddressPrefix: '*', destinationAddressPrefix: '*', destinationPortRange: '*', access: 'Deny', direction: 'Outbound', priority: 4096 } }
       ] } },
       { type: 'Microsoft.Network/networkSecurityGroups', name: 'database-nsg', tags, properties: { securityRules: [
-        { name: 'vm-postgres', properties: { protocol: 'Tcp', sourceAddressPrefix: '10.42.0.0/24', destinationAddressPrefix: '10.42.1.0/28', destinationPortRange: '5432', access: 'Allow', direction: 'Inbound', priority: 100 } },
-        { name: 'pg-subnet', properties: { protocol: 'Tcp', sourceAddressPrefix: '10.42.1.0/28', destinationAddressPrefix: '10.42.1.0/28', destinationPortRange: '5432', access: 'Allow', direction: 'Inbound', priority: 110 } },
-        { name: 'storage', properties: { protocol: 'Tcp', sourceAddressPrefix: '10.42.1.0/28', destinationAddressPrefix: 'Storage', destinationPortRange: '443', access: 'Allow', direction: 'Outbound', priority: 100 } },
-        { name: 'pg-out', properties: { protocol: 'Tcp', sourceAddressPrefix: '10.42.1.0/28', destinationAddressPrefix: '10.42.1.0/28', destinationPortRange: '5432', access: 'Allow', direction: 'Outbound', priority: 110 } },
+        { name: 'vm-postgres', properties: { protocol: 'Tcp', sourceAddressPrefix: '10.42.0.0/24', destinationAddressPrefix: databaseSubnetReference, destinationPortRange: '5432', access: 'Allow', direction: 'Inbound', priority: 100 } },
+        { name: 'pg-subnet', properties: { protocol: 'Tcp', sourceAddressPrefix: databaseSubnetReference, destinationAddressPrefix: databaseSubnetReference, destinationPortRange: '5432', access: 'Allow', direction: 'Inbound', priority: 110 } },
+        { name: 'storage', properties: { protocol: 'Tcp', sourceAddressPrefix: databaseSubnetReference, destinationAddressPrefix: 'Storage', destinationPortRange: '443', access: 'Allow', direction: 'Outbound', priority: 100 } },
+        { name: 'pg-out', properties: { protocol: 'Tcp', sourceAddressPrefix: databaseSubnetReference, destinationAddressPrefix: databaseSubnetReference, destinationPortRange: '5432', access: 'Allow', direction: 'Outbound', priority: 110 } },
         { name: 'deny-egress', properties: { protocol: '*', sourceAddressPrefix: '*', destinationAddressPrefix: '*', destinationPortRange: '*', access: 'Deny', direction: 'Outbound', priority: 4096 } }
       ] } },
       { type: 'Microsoft.Network/virtualNetworks', name: 'vm-vnet', tags, properties: { subnets: [
-        { name: 'vm', properties: { addressPrefix: '10.42.0.0/26', networkSecurityGroup: { id: 'vm-nsg' }, serviceEndpoints: [{ service: 'Microsoft.KeyVault' }] } },
-        { name: 'database', properties: { addressPrefix: '10.42.1.0/28', delegations: [{ properties: { serviceName: 'Microsoft.DBforPostgreSQL/flexibleServers' } }] } }
+        { name: 'vm', properties: { addressPrefix: '10.42.0.0/24', networkSecurityGroup: { id: 'vm-nsg' }, serviceEndpoints: [{ service: 'Microsoft.KeyVault' }] } },
+        { name: 'database', properties: { addressPrefix: databaseSubnetReference, delegations: [{ properties: { serviceName: 'Microsoft.DBforPostgreSQL/flexibleServers' } }] } }
       ] } },
       { type: 'Microsoft.Network/publicIPAddresses', name: 'public-ip', condition: publicIngress, tags, sku: { name: 'Standard' }, properties: { publicIPAllocationMethod: 'Static' } },
       { type: 'Microsoft.Compute/virtualMachines', name: 'vm', tags, identity: { type: 'SystemAssigned' }, properties: {
@@ -75,6 +78,9 @@ test('VM candidate rejects public database, broad SSH, unbudgeted ingress, and e
     t => t.resources[4].properties.storageProfile.osDisk.diskSizeGB = 128,
     t => t.resources[10].properties.enableRbacAuthorization = false,
     t => t.parameters.enablePublicIngress.defaultValue = true,
+    t => t.variables.databaseSubnetAddressPrefix = '10.42.0.0/24',
+    t => delete t.parameters.location.allowedValues,
+    t => t.resources[10].properties.networkAcls.ipRules = ['0.0.0.0'],
     t => t.resources[0].properties.securityRules[8].properties.access = 'Allow',
     t => t.resources[1].properties.securityRules[0].properties.sourceAddressPrefix = 'Internet'
   ]

@@ -61,21 +61,27 @@ export function validateTemplate(template) {
 }
 const vmTemplateError = () => { throw new Error('Unsafe Azure VM template') }
 const expectedTags = { project: 'vinyl-shop', environment: 'demo', budget: 'azure-students' }
+const expectedVmRegions = ['polandcentral', 'spaincentral', 'germanywestcentral', 'austriaeast', 'denmarkeast']
+const azureDnsAddress = '168.63.129.16/32' // Azure platform DNS virtual IP; this is a reserved service endpoint, not a configurable host.
+const vmSubnetAddressPrefix = '10.42.0.0/24' // Fixed private app-subnet source range; the validator ensures database access never broadens beyond it.
+const databaseSubnetAddressPrefix = '10.42.1.0/28' // Fixed private delegated PostgreSQL subnet; the validator binds database rules to this narrow range.
+const databaseSubnetAddressPrefixReference = "[variables('databaseSubnetAddressPrefix')]"
 const equals = (left, right) => JSON.stringify(left) === JSON.stringify(right)
 const deletesConditionalPublicIpWithParent = value => typeof value === 'string' &&
   value.includes("if(parameters('enablePublicIngress')") &&
   value.includes("resourceId('Microsoft.Network/publicIPAddresses'") &&
   /createObject\('deleteOption',\s*'Delete'\)/.test(value)
-export function validateVmTemplate(template) {
-  const all = resources(template)
-  const resource = type => all.find(item => item.type.toLowerCase() === type.toLowerCase())
+function validateVmParameters(template) {
   const param = name => template.parameters?.[name]
-  const ingress = "[parameters('enablePublicIngress')]"
   if (param('enablePublicIngress')?.type.toLowerCase() !== 'bool' || param('enablePublicIngress').defaultValue !== false ||
       param('adminSshAddress')?.type.toLowerCase() !== 'string' || param('adminSshAddress').defaultValue !== '127.0.0.1' ||
       param('administratorPassword')?.type.toLowerCase() !== 'securestring' ||
+      !equals(param('location')?.allowedValues, expectedVmRegions) ||
+      template.variables?.databaseSubnetAddressPrefix !== databaseSubnetAddressPrefix ||
       template.variables?.tags && !equals(template.variables.tags, expectedTags)) vmTemplateError()
-  const tagged = item => equals(item.tags, expectedTags) || item.tags === "[variables('tags')]"
+}
+function findVmResources(template, all) {
+  const resource = type => all.find(item => item.type.toLowerCase() === type.toLowerCase())
   const vm = resource('Microsoft.Compute/virtualMachines')
   const nic = resource('Microsoft.Network/networkInterfaces')
   const nsg = resource('Microsoft.Network/networkSecurityGroups')
@@ -88,7 +94,10 @@ export function validateVmTemplate(template) {
   const link = resource('Microsoft.Network/privateDnsZones/virtualNetworkLinks')
   const vault = resource('Microsoft.KeyVault/vaults')
   if (!vm || !nic || !nsg || !dbNsg || !vnet || !publicIp || !pg || !tls || !zone || !link || !vault ||
-      [vm,nic,nsg,dbNsg,vnet,publicIp,pg,zone,link,vault].some(item => !tagged(item))) vmTemplateError()
+      [vm,nic,nsg,dbNsg,vnet,publicIp,pg,zone,link,vault].some(item => !equals(item.tags, expectedTags) && item.tags !== "[variables('tags')]")) vmTemplateError()
+  return { vm, nic, nsg, dbNsg, vnet, publicIp, pg, tls, zone, link, vault }
+}
+function validateVmMachine(vm, nic, publicIp, template) {
   const vmProps = vm.properties
   const vmNic = vmProps.networkProfile?.networkInterfaces?.find(item => String(item.id).includes('networkInterfaces'))
   const attachedPublicIpDeletes = nic.properties?.ipConfigurations?.some(item => deletesConditionalPublicIpWithParent(item.properties?.publicIPAddress))
@@ -99,49 +108,70 @@ export function validateVmTemplate(template) {
       !vmProps.osProfile?.linuxConfiguration?.ssh?.publicKeys?.length || vmProps.diagnosticsProfile?.bootDiagnostics?.enabled !== true ||
       vmProps.securityProfile?.encryptionAtHost !== true || vmProps.securityProfile?.securityType !== 'TrustedLaunch' ||
       vmNic?.properties?.deleteOption !== 'Delete' || !attachedPublicIpDeletes) vmTemplateError()
-  if (publicIp.condition !== ingress || publicIp.sku?.name !== 'Standard' || publicIp.properties?.publicIPAllocationMethod !== 'Static' ||
+  if (publicIp.condition !== "[parameters('enablePublicIngress')]" || publicIp.sku?.name !== 'Standard' ||
+      publicIp.properties?.publicIPAllocationMethod !== 'Static' ||
       template.resources.some(item => item.type.toLowerCase() === 'microsoft.network/natgateways' || /applicationgateways|loadbalancers|privateendpoints/i.test(item.type))) vmTemplateError()
+}
+function validateVmFirewall(nsg, dbNsg) {
   const rules = nsg.properties?.securityRules ?? []
   const inbound = rules.filter(rule => rule.properties.direction === 'Inbound' && rule.properties.access === 'Allow')
   if (inbound.length !== 3 || inbound.some(rule => ['5432','*'].includes(rule.properties.destinationPortRange) || rule.properties.sourceAddressPrefix === '*')) vmTemplateError()
   for (const [port, expectedSource] of [['443','Internet'],['80','Internet']]) {
     const rule = inbound.find(item => item.properties.destinationPortRange === port)
-    if (!rule || rule.properties.sourceAddressPrefix !== expectedSource || rule.properties.protocol !== 'Tcp') vmTemplateError()
+    if (rule?.properties.sourceAddressPrefix !== expectedSource || rule?.properties.protocol !== 'Tcp') vmTemplateError()
   }
   const ssh = inbound.find(item => item.properties.destinationPortRange === '22')
-  if (!ssh || ssh.properties.sourceAddressPrefix !== "[format('{0}/32', parameters('adminSshAddress'))]" || ssh.properties.protocol !== 'Tcp') vmTemplateError()
+  if (ssh?.properties.sourceAddressPrefix !== "[format('{0}/32', parameters('adminSshAddress'))]" || ssh?.properties.protocol !== 'Tcp') vmTemplateError()
   const outbound = rules.filter(rule => rule.properties.direction === 'Outbound' && rule.properties.access === 'Allow')
   const outboundRule = (port, destination) => outbound.find(rule => rule.properties.destinationPortRange === port && rule.properties.destinationAddressPrefix === destination)
   if (rules.filter(rule => rule.properties.direction === 'Outbound' && rule.properties.access === 'Deny' &&
       rule.properties.destinationAddressPrefix === '*' && rule.properties.destinationPortRange === '*').length !== 1 ||
-      !outboundRule('53','168.63.129.16/32') || !outboundRule('5432','10.42.1.0/28') || !outboundRule('443','Internet') ||
-      !outboundRule('80','Internet') || !outboundRule('123','Internet')) vmTemplateError()
+      !outboundRule('53', azureDnsAddress) || !outboundRule('5432', databaseSubnetAddressPrefixReference) ||
+      !outboundRule('443', 'Internet') || !outboundRule('80', 'Internet') || !outboundRule('123', 'Internet')) vmTemplateError()
   const dbRules = dbNsg.properties?.securityRules ?? []
   const dbInbound = dbRules.filter(rule => rule.properties.direction === 'Inbound' && rule.properties.access === 'Allow')
   const dbOutbound = dbRules.filter(rule => rule.properties.direction === 'Outbound' && rule.properties.access === 'Allow')
-  if (dbInbound.length !== 2 || !dbInbound.some(rule => rule.properties.destinationPortRange === '5432' && rule.properties.sourceAddressPrefix === '10.42.0.0/24') ||
-      !dbInbound.some(rule => rule.properties.destinationPortRange === '5432' && rule.properties.sourceAddressPrefix === '10.42.1.0/28') ||
+  if (dbInbound.length !== 2 || !dbInbound.some(rule => rule.properties.destinationPortRange === '5432' && rule.properties.sourceAddressPrefix === vmSubnetAddressPrefix) ||
+      !dbInbound.some(rule => rule.properties.destinationPortRange === '5432' && rule.properties.sourceAddressPrefix === databaseSubnetAddressPrefixReference) ||
       !dbOutbound.some(rule => rule.properties.destinationPortRange === '443' && rule.properties.destinationAddressPrefix === 'Storage') ||
-      !dbOutbound.some(rule => rule.properties.destinationPortRange === '5432' && rule.properties.destinationAddressPrefix === '10.42.1.0/28') ||
+      !dbOutbound.some(rule => rule.properties.destinationPortRange === '5432' && rule.properties.destinationAddressPrefix === databaseSubnetAddressPrefixReference) ||
       dbRules.filter(rule => rule.properties.direction === 'Outbound' && rule.properties.access === 'Deny' && rule.properties.destinationAddressPrefix === '*').length !== 1) vmTemplateError()
+}
+function validateVmSubnets(vnet) {
   const subnets = vnet.properties?.subnets ?? []
   const vmSubnet = subnets.find(item => item.name === 'vm')
   const dbSubnet = subnets.find(item => item.name === 'database')
-  if (!vmSubnet || !vmSubnet.properties.serviceEndpoints?.some(item => item.service === 'Microsoft.KeyVault') ||
-      !dbSubnet?.properties.delegations?.some(item => item.properties.serviceName === 'Microsoft.DBforPostgreSQL/flexibleServers')) vmTemplateError()
+  if (vmSubnet?.properties.addressPrefix !== vmSubnetAddressPrefix ||
+      !vmSubnet.properties.serviceEndpoints?.some(item => item.service === 'Microsoft.KeyVault') ||
+      dbSubnet?.properties.addressPrefix !== databaseSubnetAddressPrefixReference ||
+      !dbSubnet.properties.delegations?.some(item => item.properties.serviceName === 'Microsoft.DBforPostgreSQL/flexibleServers')) vmTemplateError()
+}
+function validateVmDatabase(pg, tls, zone, link) {
   const db = pg.properties
   if (pg.identity?.type !== 'SystemAssigned' || pg.sku?.name !== 'Standard_B1ms' || pg.sku.tier !== 'Burstable' || db.version !== '17' || db.storage?.storageSizeGB !== 32 ||
       db.storage?.type !== 'Premium_LRS' || db.storage?.autoGrow !== 'Disabled' || db.backup?.backupRetentionDays !== 7 ||
       db.backup?.geoRedundantBackup !== 'Disabled' || db.highAvailability?.mode !== 'Disabled' || db.network?.publicNetworkAccess !== 'Disabled' ||
       !db.network?.delegatedSubnetResourceId || !db.network?.privateDnsZoneArmResourceId || tls.properties?.value !== 'on' ||
       !['private.postgres.database.azure.com', "[variables('privateDnsZoneName')]"].includes(zone.name) || link.properties?.registrationEnabled !== false) vmTemplateError()
+}
+function validateVmVault(all, vault) {
   const acl = vault.properties?.networkAcls
   if (vault.properties?.enableRbacAuthorization !== true || vault.properties?.enablePurgeProtection !== true || acl?.defaultAction !== 'Deny' ||
       acl.bypass !== 'None' || acl.ipRules?.length !== 0 || acl.virtualNetworkRules?.length !== 1 ||
       !all.some(item => item.type.toLowerCase() === 'microsoft.authorization/roleassignments' &&
         (item.scope === vault.id || item.scope === "[resourceId('Microsoft.KeyVault/vaults', parameters('vaultName'))]") &&
         item.properties?.roleDefinitionId?.includes('4633458b-17de-408a-b874-0445c86b69e6'))) vmTemplateError()
-  if (template.resources.some(item => item.type.toLowerCase() === 'microsoft.network/publicipaddresses' && item.condition !== ingress)) vmTemplateError()
+}
+export function validateVmTemplate(template) {
+  const all = resources(template)
+  validateVmParameters(template)
+  const found = findVmResources(template, all)
+  validateVmMachine(found.vm, found.nic, found.publicIp, template)
+  validateVmFirewall(found.nsg, found.dbNsg)
+  validateVmSubnets(found.vnet)
+  validateVmDatabase(found.pg, found.tls, found.zone, found.link)
+  validateVmVault(all, found.vault)
+  if (template.resources.some(item => item.type.toLowerCase() === 'microsoft.network/publicipaddresses' && item.condition !== "[parameters('enablePublicIngress')]")) vmTemplateError()
 }
 const workflowError = () => { throw new Error('Unsafe deployment workflow') }
 const hasRun = (job, command) => job?.steps?.some(step => step.run === command)

@@ -1,4 +1,5 @@
 @description('Allowed Azure region. PostgreSQL form acceptance was confirmed only for Poland Central.')
+// Intentionally restrict deployments to regions reviewed for this template; expand only after the same readiness checks.
 @allowed([
   'polandcentral'
   'spaincentral'
@@ -9,6 +10,7 @@
 param location string = 'polandcentral'
 param prefix string = 'vinyl'
 param suffix string
+var databaseSubnetAddressPrefix = '10.42.1.0/28'
 param vaultName string
 param postgresName string
 param appDomain string
@@ -102,7 +104,7 @@ resource vmNsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
           protocol: 'Tcp'
           sourceAddressPrefix: '10.42.0.0/24'
           sourcePortRange: '*'
-          destinationAddressPrefix: '10.42.1.0/28'
+          destinationAddressPrefix: databaseSubnetAddressPrefix
           destinationPortRange: '5432'
         }
       }
@@ -177,7 +179,7 @@ resource databaseNsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
           protocol: 'Tcp'
           sourceAddressPrefix: '10.42.0.0/24'
           sourcePortRange: '*'
-          destinationAddressPrefix: '10.42.1.0/28'
+          destinationAddressPrefix: databaseSubnetAddressPrefix
           destinationPortRange: '5432'
         }
       }
@@ -188,9 +190,9 @@ resource databaseNsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
           direction: 'Inbound'
           access: 'Allow'
           protocol: 'Tcp'
-          sourceAddressPrefix: '10.42.1.0/28'
+          sourceAddressPrefix: databaseSubnetAddressPrefix
           sourcePortRange: '*'
-          destinationAddressPrefix: '10.42.1.0/28'
+          destinationAddressPrefix: databaseSubnetAddressPrefix
           destinationPortRange: '5432'
         }
       }
@@ -201,7 +203,7 @@ resource databaseNsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
           direction: 'Outbound'
           access: 'Allow'
           protocol: 'Tcp'
-          sourceAddressPrefix: '10.42.1.0/28'
+          sourceAddressPrefix: databaseSubnetAddressPrefix
           sourcePortRange: '*'
           destinationAddressPrefix: 'Storage'
           destinationPortRange: '443'
@@ -214,9 +216,9 @@ resource databaseNsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
           direction: 'Outbound'
           access: 'Allow'
           protocol: 'Tcp'
-          sourceAddressPrefix: '10.42.1.0/28'
+          sourceAddressPrefix: databaseSubnetAddressPrefix
           sourcePortRange: '*'
-          destinationAddressPrefix: '10.42.1.0/28'
+          destinationAddressPrefix: databaseSubnetAddressPrefix
           destinationPortRange: '5432'
         }
       }
@@ -256,7 +258,7 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
       {
         name: 'database'
         properties: {
-          addressPrefix: '10.42.1.0/28'
+          addressPrefix: databaseSubnetAddressPrefix
           defaultOutboundAccess: false
           networkSecurityGroup: { id: databaseNsg.id }
           serviceEndpoints: [{ service: 'Microsoft.Storage' }]
@@ -292,6 +294,7 @@ resource vault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     softDeleteRetentionInDays: 7
     enablePurgeProtection: true
     publicNetworkAccess: 'Enabled'
+    // Keep the IP allowlist empty: defaultAction Deny must not gain IP-based exceptions.
     networkAcls: { bypass: 'None', defaultAction: 'Deny', ipRules: [], virtualNetworkRules: [{ id: vmSubnetId }] }
   }
 }
@@ -300,9 +303,9 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
   name: postgresName
   location: location
   sku: { name: 'Standard_B1ms', tier: 'Burstable' }
-  tags: tags
   identity: { type: 'SystemAssigned' }
   dependsOn: [dnsLink]
+  tags: tags
   properties: {
     version: '17'
     administratorLogin: administratorUser
@@ -328,8 +331,8 @@ resource secureTransport 'Microsoft.DBforPostgreSQL/flexibleServers/configuratio
 resource publicIp 'Microsoft.Network/publicIPAddresses@2024-05-01' = if (enablePublicIngress) {
   name: '${vmName}-ip'
   location: location
-  tags: tags
   sku: { name: 'Standard' }
+  tags: tags
   properties: { publicIPAllocationMethod: 'Static', publicIPAddressVersion: 'IPv4' }
 }
 resource nic 'Microsoft.Network/networkInterfaces@2024-05-01' = {
@@ -354,8 +357,8 @@ resource nic 'Microsoft.Network/networkInterfaces@2024-05-01' = {
 resource vm 'Microsoft.Compute/virtualMachines@2024-07-01' = {
   name: vmName
   location: location
-  tags: tags
   identity: { type: 'SystemAssigned' }
+  tags: tags
   properties: {
     hardwareProfile: { vmSize: 'Standard_B2ats_v2' }
     storageProfile: {
