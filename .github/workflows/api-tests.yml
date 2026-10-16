@@ -60,6 +60,8 @@ jobs:
           node scripts/check-ci-certificate-guards.js
           node scripts/configure-ci-test-tls.js
       - name: Run database and HTTP integration tests with LCOV
+        env:
+          PG_TEST_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: |
           mkdir -p coverage
           npm run test:coverage

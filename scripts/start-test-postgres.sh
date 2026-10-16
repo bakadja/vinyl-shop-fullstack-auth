@@ -5,6 +5,7 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 pgbin=${PG_TEST_BIN:-}
 if [[ -z "$pgbin" ]] && command -v brew >/dev/null; then pgbin="$(brew --prefix postgresql@17)/bin"; fi
 if [[ -z "$pgbin" ]]; then echo 'Set PG_TEST_BIN to PostgreSQL 17 binaries.' >&2; exit 1; fi
+export PG_TEST_BIN="$pgbin"
 cluster=$(mktemp -d "${TMPDIR:-/tmp}/vinyl-test-cluster.XXXXXXXX")
 tlsdir=''
 cleanup() {

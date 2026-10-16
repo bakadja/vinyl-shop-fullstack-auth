@@ -61,7 +61,7 @@ PG_TEST_BIN=/path/to/postgresql17/bin bash scripts/start-test-postgres.sh node t
 
 This creates a new local loopback-only cluster, verifies the restricted fixture marker, initializes all three schemas twice, dumps five tables containing fictional records, restores into a second fixture schema, compares all rows, invalidates restored sessions and verifies users/carts survive. Its schema remapping is for controlled random local identifiers only; it is not an Azure restore command. Cleanup checks schema identity and stops the disposable cluster. It never connects to an application database. Local PostgreSQL transport inside this exercise is deliberately test-only; the production TLS requirement is covered separately by the full suite.
 
-This exercise passed on PostgreSQL 17.11 / Node 24.21.0. It proves logical dump/restore and initialization repeatability only. Azure PITR, private DNS, runtime LOGIN grants, key-reference refresh and recovery time remain unverified; `restoreDrill` and `bootstrap` stay blocked.
+This exercise passed on PostgreSQL 17.11 / Node 24.21.0 using native clients and an isolated PostgreSQL 17 Docker service. It is also part of `npm test`: the Linux CI service supplies its version-matched clients through Docker; the local/macOS cluster helper exports PG_TEST_BIN. It proves logical dump/restore and initialization repeatability only. Azure PITR, private DNS, runtime LOGIN grants, key-reference refresh and recovery time remain unverified; `restoreDrill` and `bootstrap` stay blocked.
 
 ## Release and rollback, only after future authorization
 

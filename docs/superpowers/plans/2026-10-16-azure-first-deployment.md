@@ -33,3 +33,7 @@ Outbound Key Vault routing drift; accidental HA/geo-backup/storage cost increase
 Baseline and final full isolated suites: 187/187. ARM mutation test reproduced acceptance of unsafe drift, then passed after the validator correction. Azure artifact/readiness tests 11/11. Bicep build/lint, actionlint and compiled policy passed. Local logical restore passed; production package install/audit and fail-closed startup passed. All changed files scanned for secrets.
 
 Independent reviewer found no Critical/Important issue, independently passed artifact tests 5/5, and identified a stale verification placeholder that had already been replaced with completed local evidence. Azure-only ingress, privilege, reference-resolution, quota/cost and restore claims remain unverified and blocked. No security contract or gate was relaxed. Publication and exact-head CI evidence are recorded in the Draft PR and final handoff.
+
+Sonar follow-up: first remote Quality Gate rejected 32.7% new-code coverage because the standalone restore drill was not included in LCOV. Added a real integration test and version-matched Docker service clients to Linux CI; no scanner/exclusion/threshold changes. Native and Docker restore paths passed. A local coverage invocation first lacked its output directory; created it and reran.
+
+Revised full coverage run: 188/188, zero skips/failures; overall line coverage 94.04%. Native and Docker restore integration paths independently pass. Final deterministic row ordering passed the focused restore test.
