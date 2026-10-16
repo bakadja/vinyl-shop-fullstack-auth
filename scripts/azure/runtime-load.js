@@ -9,6 +9,7 @@ import { assembleRuntime } from './package.js'
 import { counterKeys, peerIdentity } from '../../sessions/abuse.js'
 
 const root = resolve(fileURLToPath(new URL('../..', import.meta.url)))
+const caddyPlatform = process.arch === 'arm64' ? 'linux/arm64' : 'linux/amd64'
 const images = {
   node: 'node@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5',
   postgres: 'postgres@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3',
@@ -33,6 +34,13 @@ function command(program, args, { env = {}, input, allowFailure = false } = {}) 
 
 const docker = (args, options) => command('docker', args, options)
 const delay = milliseconds => new Promise(resolveDelay => setTimeout(resolveDelay, milliseconds))
+const responseCounts = responses => Object.fromEntries([...new Set(responses.map(response => response.status))].sort().map(status => [status, responses.filter(response => response.status === status).length]))
+async function safeAuthDiagnostics(name) {
+  const logs = await docker(['logs', '--since', '2m', name], { allowFailure: true })
+  return `${logs.stdout}\n${logs.stderr}`.split('\n')
+    .map(line => line.match(/(?:Login failed \(stage=[a-z_]+, class=[a-z_]+\)|Authentication admission failed \(class=[a-z_]+\))/)?.[0])
+    .filter(Boolean)
+}
 
 function memoryMiB(value) {
   const match = /^(\d+(?:\.\d+)?)(B|kB|KB|MiB|GiB)$/.exec(value)
@@ -179,7 +187,7 @@ async function run() {
 
   currentStage = 'Caddy proxy startup'
   await writeFile(caddyFile, `:80 {\n  reverse_proxy app:8000 {\n    header_up X-Forwarded-For {remote_host}\n    header_up X-Forwarded-Proto https\n    header_down X-Observed-Remote {remote_host}\n  }\n}\n`, { mode: 0o600, flag: 'wx' })
-  await docker(['run', '--detach', '--platform', 'linux/amd64', '--name', caddyName, '--network', network, '--memory', '64m', '--memory-swap', '64m', '--publish', '127.0.0.1::80', '--mount', `type=bind,src=${caddyFile},dst=/etc/caddy/Caddyfile,readonly`, images.caddy])
+  await docker(['run', '--detach', '--platform', caddyPlatform, '--name', caddyName, '--network', network, '--memory', '64m', '--memory-swap', '64m', '--publish', '127.0.0.1::80', '--mount', `type=bind,src=${caddyFile},dst=/etc/caddy/Caddyfile,readonly`, images.caddy])
   containers.push(caddyName)
   const caddyNetworks = JSON.parse((await docker(['inspect', '--format', '{{json .NetworkSettings.Networks}}', caddyName])).stdout)
   const caddyIp = Object.values(caddyNetworks)[0].IPAddress
@@ -200,13 +208,32 @@ async function run() {
   const peaks = {}
   samplerPromise = sampleMemory(appName, caddyName, peaks)
   let live
+  let lastReadinessFailure = 'none'
   for (let attempt = 0; attempt < 120; attempt++) {
-    try { live = await request(`${baseUrl}/health/ready`); if (live.status === 200) break } catch {}
+    try { live = await request(`${baseUrl}/health/ready`); if (live.status === 200) break } catch (error) {
+      const code = error?.cause?.code
+      lastReadinessFailure = code && /^[A-Z0-9_]+$/.test(code) ? code : error?.name === 'TimeoutError' ? 'fetch_timeout' : 'fetch_error'
+    }
     await delay(500)
   }
   if (live?.status !== 200) {
     const state = await docker(['inspect', '--format', '{{.State.Status}}|{{.State.ExitCode}}|{{.State.OOMKilled}}', appName], { allowFailure: true })
-    throw new Error(`PostgreSQL-backed readiness failed (app container ${state.code === 0 ? state.stdout : 'unavailable'})`)
+    const appLogs = await docker(['logs', '--tail', '20', appName], { allowFailure: true })
+    const caddyState = await docker(['inspect', '--format', '{{.State.Status}}|{{.State.ExitCode}}|{{.State.OOMKilled}}', caddyName], { allowFailure: true })
+    const caddyLogs = await docker(['logs', '--tail', '120', caddyName], { allowFailure: true })
+    const safeStartupLogs = `${appLogs.stdout}\n${appLogs.stderr}`.split('\n')
+      .map(line => line.match(/(?:Server running at http:\/\/localhost:\d+|Session server startup failed\. Check configuration, connectivity and schema compatibility\.|PostgreSQL idle connection failed)/)?.[0])
+      .filter(Boolean)
+    const caddyLogLines = `${caddyLogs.stdout}\n${caddyLogs.stderr}`.split('\n')
+    const panicLine = caddyLogLines.findIndex(line => line.includes('panic:'))
+    const caddyFailure = (panicLine >= 0 ? caddyLogLines.slice(panicLine, panicLine + 40) : caddyLogLines).map(line => {
+      if (line.includes('connect: connection refused')) return 'upstream_connection_refused'
+      if (line.includes('no such host')) return 'upstream_dns_failure'
+      if (line.includes('i/o timeout')) return 'upstream_timeout'
+      if (/error|failed|panic:|goroutine \d+|runtime\.|caddyserver|\.go:\d+/i.test(line)) return line.trim().slice(-240)
+      return null
+    }).filter(Boolean).slice(-12)
+    throw new Error(`PostgreSQL-backed readiness failed (HTTP ${live?.status ?? 'no response'}, last fetch=${lastReadinessFailure}, app=${state.code === 0 ? state.stdout : 'unavailable'}, Caddy=${caddyState.code === 0 ? caddyState.stdout : 'unavailable'}, Caddy failures=${JSON.stringify(caddyFailure)}, safe app logs=${JSON.stringify(safeStartupLogs)})`)
   }
   const observed = live.headers.get('x-observed-remote')
   assert.ok(observed, 'Caddy must expose its direct peer to the local test assertion')
@@ -259,8 +286,42 @@ async function run() {
   failures.push(await request(`${baseUrl}/api/auth/login`, {
     method: 'POST', body: { username: `fictional-burst-20-${suffix}`, password: 'Fictional-wrong-password-123' }
   }))
-  assert.ok(failures.every(response => [401, 429, 503].includes(response.status)), `Concurrent auth response counts: ${JSON.stringify(Object.fromEntries([...new Set(failures.map(response => response.status))].map(status => [status, failures.filter(response => response.status === status).length])))}`)
-  assert.ok(failures.some(response => response.status === 429), 'Concurrent abuse must reach the configured limiter')
+  const failureCounts = responseCounts(failures)
+  const bounded429 = failureCounts[429] ?? 0
+  const bounded401 = failureCounts[401] ?? 0
+  const bounded5xx = failures.filter(response => response.status >= 500).length
+  console.log(`Bounded login response counts: 401=${bounded401}, 429=${bounded429}, 5xx=${bounded5xx}`)
+  assert.deepEqual(failureCounts, { 401: 20, 429: 1 }, 'Bounded login attempts must be limited without any server errors')
+
+  currentStage = 'exceptional 24-way auth-abuse workload'
+  const exceptionalTrials = []
+  for (let trial = 0; trial < 5; trial++) {
+    const previousDiagnostics = await safeAuthDiagnostics(appName)
+    await psql(pgName, 'DELETE FROM auth_abuse_counters;')
+    const responses = await Promise.all(Array.from({ length: 24 }, (_, index) => request(`${baseUrl}/api/auth/login`, {
+      method: 'POST', body: { username: `fictional-exception-${trial}-${index}-${suffix}`, password: 'Fictional-wrong-password-123' }
+    })))
+    const diagnostics = (await safeAuthDiagnostics(appName)).slice(previousDiagnostics.length)
+    const result = { counts: responseCounts(responses), diagnostics }
+    exceptionalTrials.push(result)
+    console.log(`Exceptional 24-way overload trial ${trial + 1}/5: ${JSON.stringify(result)}`)
+    assert.equal(Object.values(result.counts).reduce((sum, count) => sum + count, 0), 24, 'Every exceptional request must return a response')
+    assert.ok(Object.keys(result.counts).every(status => ['401', '429', '503'].includes(status)), 'Exceptional overload must not produce HTTP 5xx beyond controlled 503 back-pressure')
+    assert.equal(result.counts[503] ?? 0, result.diagnostics.length, 'Each controlled 503 must have one safe admission-failure diagnostic')
+    assert.ok(result.diagnostics.every(line => line === 'Authentication admission failed (class=postgres_lock_timeout)'), 'The observed overload must be explained by the configured PostgreSQL lock timeout')
+  }
+  const exceptionalTotal = exceptionalTrials.reduce((sum, trial) => sum + Object.values(trial.counts).reduce((total, count) => total + count, 0), 0)
+  console.log(`Exceptional 24-way overload response counts: ${JSON.stringify(exceptionalTrials.map(trial => trial.counts))}; safe diagnostics=${JSON.stringify(exceptionalTrials.map(trial => trial.diagnostics))}`)
+  assert.equal(exceptionalTotal, 120, 'Each exceptional overload trial must return one response per request')
+  const limitedLegitimateLogin = await request(`${baseUrl}/api/auth/login`, { method: 'POST', body: { username: user.username, password: user.password } })
+  assert.equal(limitedLegitimateLogin.status, 429, 'A different account cannot bypass the exhausted global authentication burst limit')
+  assert.equal(limitedLegitimateLogin.headers.has('set-cookie'), false, 'Rate-limited login must not create a session')
+  const recoveryDelay = Number(limitedLegitimateLogin.headers.get('retry-after'))
+  assert.ok(Number.isInteger(recoveryDelay) && recoveryDelay > 0 && recoveryDelay <= 10, 'Limiter retry window must remain bounded')
+  assert.equal((await request(`${baseUrl}/health/ready`)).status, 200, 'The app must remain ready after exceptional overload')
+  await delay((recoveryDelay + 1) * 1000)
+  const recoveredLogin = await request(`${baseUrl}/api/auth/login`, { method: 'POST', body: { username: user.username, password: user.password } })
+  assert.equal(recoveredLogin.status, 200, 'Authentication must recover after the burst window expires')
 
   currentStage = 'app restart and persisted-state recovery'
   await docker(['restart', appName])
@@ -281,9 +342,9 @@ async function run() {
   assert.equal(appOom || caddyOom, false, 'App and Caddy must not be OOM-killed')
   assert.ok(peaks[appName] > 0 && peaks[caddyName] > 0, 'Memory must be sampled during the workload')
 
-  console.log(`Runtime workload passed on Docker Linux/amd64 with PostgreSQL TLS verify-full.`)
+  console.log(`Runtime workload passed on Docker Linux/amd64 app/PostgreSQL with ${caddyPlatform} Caddy and PostgreSQL TLS verify-full.`)
   console.log(`Caddy header spoof checks: a spoofed single header did not change the charged peer; duplicate headers received HTTP ${duplicate.status}; peer=${peerIdentity(observed)}.`)
-  console.log(`Requests: 32 concurrent product/cart reads; 21 invalid logins in five-request waves (${failures.filter(r => r.status === 401).length} HTTP 401, ${failures.filter(r => r.status === 429).length} HTTP 429, ${failures.filter(r => r.status === 503).length} controlled HTTP 503).`)
+  console.log(`Requests: 32 concurrent product/cart reads; bounded 21 invalid logins in five-request waves.`)
   console.log(`Recovery: registration, PostgreSQL session, cart and readiness survived an app container restart.`)
   console.log(`Memory caps: app 704 MiB + Caddy 64 MiB = 768 MiB; measured peaks ${peaks[appName].toFixed(1)} MiB and ${peaks[caddyName].toFixed(1)} MiB; no OOM.`)
   console.log(`The remaining 256 MiB of the 1-GiB VM budget is reserved for the guest OS and agents; the local Docker VM has separate overhead.`)

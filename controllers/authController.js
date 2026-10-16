@@ -4,6 +4,7 @@ import isEmail from 'validator/lib/isEmail.js'
 import { getDatabase } from '../db/db.js'
 import bcrypt from 'bcryptjs'
 import { randomBytes } from 'node:crypto'
+import { authenticationFailureClass } from '../sessions/failure-class.js'
 
 const dummyPasswordHash = bcrypt.hashSync(randomBytes(32).toString('hex'), 10)
 const bounded = (value, bytes) => typeof value === 'string' && Buffer.byteLength(value, 'utf8') <= bytes
@@ -81,11 +82,13 @@ export async function loginUser(req, res) {
 
   username = username.trim()
 
+  let stage = 'postgres_user_lookup'
   try {
     const db = getDatabase()
 
     const user = (await db.query('SELECT * FROM users WHERE username = $1', [username])).rows[0]
 
+    stage = 'bcrypt_compare'
     const isValid = await bcrypt.compare(password, user?.password ?? dummyPasswordHash)
 
     if (!user || !isValid) {
@@ -94,12 +97,12 @@ export async function loginUser(req, res) {
 
     }
 
+    stage = 'session_persistence'
     await establishSession(req, res, user.id, req.app.locals.sessionConfig)
     res.json({ message: 'Logged in' })
 
   } catch (err) {
-    if (err?.code === 'ECONNREFUSED') console.error('Login database connection refused')
-    else console.error('Login database operation failed')
+    console.error(`Login failed (stage=${stage}, class=${authenticationFailureClass(err)})`)
     res.status(500).json({ error: 'Login failed. Please try again.' })
   }
 }

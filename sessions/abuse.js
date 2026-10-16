@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto'
 import { isIP, SocketAddress } from 'node:net'
+import { authenticationFailureClass } from './failure-class.js'
 
 export function abuseKey(env = process.env) {
   const key = env.AUTH_ABUSE_HMAC_KEY
@@ -83,8 +84,9 @@ export function authenticationAbuse(database, key, trustPeer = () => false) {
       const result = await consumeAttempt(database, counterKeys(key, endpoint, peer, req.body?.username))
       if (result.allowed) return next()
       res.status(429).set({ 'Retry-After': String(result.retryAfter), 'Cache-Control': 'no-store' }).json({ error: 'Too many authentication attempts. Please try again later.' })
-    } catch {
+    } catch (error) {
       // No raw error, address, username, cookie or PostgreSQL configuration is logged.
+      console.error(`Authentication admission failed (class=${authenticationFailureClass(error)})`)
       res.status(503).set({ 'Retry-After': '5', 'Cache-Control': 'no-store' }).json({ error: 'Authentication temporarily unavailable. Please try again later.' })
     }
   }

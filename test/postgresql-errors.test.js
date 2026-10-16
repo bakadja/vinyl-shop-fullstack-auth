@@ -5,7 +5,7 @@ import { getCurrentUser } from '../controllers/meController.js'
 import { closeDatabase } from '../db/db.js'
 
 for (const [name, handler, message, diagnostic] of [
-  ['login', loginUser, 'Login failed. Please try again.', 'Login database connection refused'],
+  ['login', loginUser, 'Login failed. Please try again.', 'Login failed (stage=postgres_user_lookup, class=postgres_connection_refused)'],
   ['current user', getCurrentUser, 'Internal server error', 'Current user database connection refused']
 ]) {
   test(`${name} handles connection refusal explicitly without exposing database details`, async t => {
