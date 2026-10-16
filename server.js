@@ -76,7 +76,9 @@ try {
     res.status(status).set('Cache-Control','no-store').json({error})
   })
   server=await new Promise((resolve,reject)=>{
-    const listening=app.listen(Number(process.env.PORT??8000),()=>resolve(listening))
+    const listening=config.bindAddress
+      ? app.listen(Number(process.env.PORT??8000),config.bindAddress,()=>resolve(listening))
+      : app.listen(Number(process.env.PORT??8000),()=>resolve(listening))
     listening.once('error',reject)
   })
   console.log(`Server running at http://localhost:${server.address().port}`)

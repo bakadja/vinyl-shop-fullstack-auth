@@ -34,12 +34,14 @@ jobs:
         run: |
           mkdir -p .cache
           "$RUNNER_TEMP/bicep" build infra/azure/main.bicep --outfile .cache/azure-template.json
+          "$RUNNER_TEMP/bicep" build infra/azure/vm/main.bicep --outfile .cache/azure-vm-template.json
           "$RUNNER_TEMP/bicep" lint infra/azure/main.bicep
+          "$RUNNER_TEMP/bicep" lint infra/azure/vm/main.bicep
           node scripts/azure/validate.js
       - name: Validate workflows
         run: '"$RUNNER_TEMP/actionlint" .github/workflows/azure-validate.yml .github/workflows/azure-deploy.yml'
       - name: Test deployment guards and artifact boundaries
-        run: node --test test/azure-readiness.test.js test/azure-artifacts.test.js
+        run: node --test test/azure-readiness.test.js test/azure-artifacts.test.js test/azure-vm.test.js
       - name: Verify the committed deployment lock remains closed
         run: |
           node --input-type=module <<'JS'

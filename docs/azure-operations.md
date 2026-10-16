@@ -2,6 +2,8 @@
 
 Status as of 2026-10-16: **NO-GO**. This is an operator runbook for a future separately authorized exercise. None of these Azure operations has been performed. Deployment is disabled and all six gates remain blocked. See [readiness assessment](azure-first-deployment-assessment.md) and [architecture/security reference](azure-deployment.md).
 
+This runbook covers the established App Service preparation. The separate [Azure VM candidate](azure-vm-architecture.md) documents its SSH, update, restore, rollback, and cleanup procedures. Neither runbook authorizes provisioning or clears a readiness gate.
+
 ## Approval and preparation
 
 1. Owner reviews the Draft PR, exact-head CI/Sonar, proxy feasibility, cost worksheet and all gate evidence. Resolve each failed check before any activation proposal. Do not run the delivery workflow to test it.
