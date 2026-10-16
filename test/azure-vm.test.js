@@ -44,9 +44,9 @@ function template() {
         osProfile: { linuxConfiguration: { disablePasswordAuthentication: true, ssh: { publicKeys: [{ keyData: 'ssh-rsa AAAA example', path: '/home/operator/.ssh/authorized_keys' }] } }, customData: '[base64(cloud-init)]' },
         diagnosticsProfile: { bootDiagnostics: { enabled: true } },
         securityProfile: { securityType: 'TrustedLaunch', encryptionAtHost: true, uefiSettings: { secureBootEnabled: true, vTpmEnabled: true } },
-        networkProfile: { networkInterfaces: [{ id: '/networkInterfaces/vm-nic' }] }
+        networkProfile: { networkInterfaces: [{ id: '/networkInterfaces/vm-nic', properties: { primary: true, deleteOption: 'Delete' } }] }
       } },
-      { type: 'Microsoft.Network/networkInterfaces', name: 'vm-nic', tags, properties: { ipConfigurations: [{ properties: { publicIPAddress: { id: 'public-ip' }, subnet: { id: 'vm-subnet' } } }] } },
+      { type: 'Microsoft.Network/networkInterfaces', name: 'vm-nic', tags, properties: { ipConfigurations: [{ properties: { publicIPAddress: "[if(parameters('enablePublicIngress'), createObject('id', resourceId('Microsoft.Network/publicIPAddresses', 'vm-ip'), 'properties', createObject('deleteOption', 'Delete')), null())]", subnet: { id: 'vm-subnet' } } }] } },
       { type: 'Microsoft.Network/privateDnsZones', name: 'private.postgres.database.azure.com', tags, properties: {} },
       { type: 'Microsoft.Network/privateDnsZones/virtualNetworkLinks', name: 'database-link', tags, properties: { registrationEnabled: false, virtualNetwork: { id: 'vm-vnet' } } },
       { type: 'Microsoft.DBforPostgreSQL/flexibleServers', name: 'postgres', tags, identity: { type: 'SystemAssigned' }, sku: { name: 'Standard_B1ms', tier: 'Burstable' }, properties: {
@@ -77,6 +77,19 @@ test('VM candidate rejects public database, broad SSH, unbudgeted ingress, and e
     t => t.parameters.enablePublicIngress.defaultValue = true,
     t => t.resources[0].properties.securityRules[8].properties.access = 'Allow',
     t => t.resources[1].properties.securityRules[0].properties.sourceAddressPrefix = 'Internet'
+  ]
+  for (const change of changes) {
+    const candidate = template(); change(candidate)
+    assert.throws(() => validateVmTemplate(candidate), /Unsafe Azure VM template/)
+  }
+})
+
+test('VM deletion removes its OS disk, NIC, and conditional public IP', () => {
+  assert.doesNotThrow(() => validateVmTemplate(template()))
+  const changes = [
+    t => t.resources[4].properties.storageProfile.osDisk.deleteOption = 'Detach',
+    t => t.resources[4].properties.networkProfile.networkInterfaces[0].properties.deleteOption = 'Detach',
+    t => t.resources[5].properties.ipConfigurations[0].properties.publicIPAddress = t.resources[5].properties.ipConfigurations[0].properties.publicIPAddress.replace("createObject('deleteOption', 'Delete')", "createObject('deleteOption', 'Detach')")
   ]
   for (const change of changes) {
     const candidate = template(); change(candidate)

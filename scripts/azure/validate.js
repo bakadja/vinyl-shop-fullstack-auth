@@ -62,6 +62,10 @@ export function validateTemplate(template) {
 const vmTemplateError = () => { throw new Error('Unsafe Azure VM template') }
 const expectedTags = { project: 'vinyl-shop', environment: 'demo', budget: 'azure-students' }
 const equals = (left, right) => JSON.stringify(left) === JSON.stringify(right)
+const deletesConditionalPublicIpWithParent = value => typeof value === 'string' &&
+  value.includes("if(parameters('enablePublicIngress')") &&
+  value.includes("resourceId('Microsoft.Network/publicIPAddresses'") &&
+  /createObject\('deleteOption',\s*'Delete'\)/.test(value)
 export function validateVmTemplate(template) {
   const all = resources(template)
   const resource = type => all.find(item => item.type.toLowerCase() === type.toLowerCase())
@@ -86,13 +90,15 @@ export function validateVmTemplate(template) {
   if (!vm || !nic || !nsg || !dbNsg || !vnet || !publicIp || !pg || !tls || !zone || !link || !vault ||
       [vm,nic,nsg,dbNsg,vnet,publicIp,pg,zone,link,vault].some(item => !tagged(item))) vmTemplateError()
   const vmProps = vm.properties
+  const vmNic = vmProps.networkProfile?.networkInterfaces?.find(item => String(item.id).includes('networkInterfaces'))
+  const attachedPublicIpDeletes = nic.properties?.ipConfigurations?.some(item => deletesConditionalPublicIpWithParent(item.properties?.publicIPAddress))
   if (vm.condition !== undefined || vm.identity?.type !== 'SystemAssigned' || vmProps.hardwareProfile?.vmSize !== 'Standard_B2ats_v2' ||
       vmProps.storageProfile?.imageReference?.publisher !== 'Canonical' || vmProps.storageProfile?.imageReference?.offer !== 'ubuntu-24_04-lts' ||
       vmProps.storageProfile?.osDisk?.diskSizeGB !== 64 || vmProps.storageProfile?.osDisk?.managedDisk?.storageAccountType !== 'Premium_LRS' ||
       vmProps.storageProfile?.osDisk?.deleteOption !== 'Delete' || vmProps.osProfile?.linuxConfiguration?.disablePasswordAuthentication !== true ||
       !vmProps.osProfile?.linuxConfiguration?.ssh?.publicKeys?.length || vmProps.diagnosticsProfile?.bootDiagnostics?.enabled !== true ||
       vmProps.securityProfile?.encryptionAtHost !== true || vmProps.securityProfile?.securityType !== 'TrustedLaunch' ||
-      !vmProps.networkProfile?.networkInterfaces?.some(item => String(item.id).includes('networkInterfaces'))) vmTemplateError()
+      vmNic?.properties?.deleteOption !== 'Delete' || !attachedPublicIpDeletes) vmTemplateError()
   if (publicIp.condition !== ingress || publicIp.sku?.name !== 'Standard' || publicIp.properties?.publicIPAllocationMethod !== 'Static' ||
       template.resources.some(item => item.type.toLowerCase() === 'microsoft.network/natgateways' || /applicationgateways|loadbalancers|privateendpoints/i.test(item.type))) vmTemplateError()
   const rules = nsg.properties?.securityRules ?? []

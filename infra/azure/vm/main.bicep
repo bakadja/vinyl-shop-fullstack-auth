@@ -342,7 +342,10 @@ resource nic 'Microsoft.Network/networkInterfaces@2024-05-01' = {
       properties: {
         privateIPAllocationMethod: 'Dynamic'
         subnet: { id: vmSubnetId }
-        publicIPAddress: enablePublicIngress ? { id: publicIp.id } : null
+        publicIPAddress: enablePublicIngress ? {
+          id: publicIp.id
+          properties: { deleteOption: 'Delete' }
+        } : null
       }
     }]
   }
@@ -376,7 +379,7 @@ resource vm 'Microsoft.Compute/virtualMachines@2024-07-01' = {
       }
       customData: base64(customizedCloudInit)
     }
-    networkProfile: { networkInterfaces: [{ id: nic.id, properties: { primary: true } }] }
+    networkProfile: { networkInterfaces: [{ id: nic.id, properties: { primary: true, deleteOption: 'Delete' } }] }
     diagnosticsProfile: { bootDiagnostics: { enabled: true } }
     securityProfile: {
       securityType: 'TrustedLaunch'
